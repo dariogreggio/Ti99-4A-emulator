@@ -1,0 +1,286 @@
+//Microsoft Developer Studio generated resource script.
+//
+#include "resource.h"
+
+#define APSTUDIO_READONLY_SYMBOLS
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 2 resource.
+//
+#include "afxres.h"
+
+/////////////////////////////////////////////////////////////////////////////
+#undef APSTUDIO_READONLY_SYMBOLS
+
+/////////////////////////////////////////////////////////////////////////////
+// Italian (Italy) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ITA)
+#ifdef _WIN32
+LANGUAGE LANG_ITALIAN, SUBLANG_ITALIAN
+#pragma code_page(1252)
+#endif //_WIN32
+
+#ifndef _MAC
+/////////////////////////////////////////////////////////////////////////////
+//
+// Version
+//
+
+1 VERSIONINFO
+ FILEVERSION 1,0,0,2
+ PRODUCTVERSION 1,0,0,2
+ FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+ FILEFLAGS 0xbL
+#else
+ FILEFLAGS 0xaL
+#endif
+ FILEOS 0x10004L
+ FILETYPE 0x1L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "041004e4"
+        BEGIN
+            VALUE "Comments", "Written by: Dario Greggio\0"
+            VALUE "CompanyName", "Dario Greggio; ADPM Synthesis sas\0"
+            VALUE "FileDescription", "Emulatore TMS9900 - Ti99/4A\0"
+            VALUE "FileVersion", "1.00\0"
+            VALUE "InternalName", "TMS9900win\0"
+            VALUE "LegalCopyright", "Copyright © ADPM Synthesis sas 2023-2025\0"
+            VALUE "LegalTrademarks", "Microsoft® is a registered trademark of Microsoft Corporation. Windows(TM) is a trademark of Microsoft Corporation\0"
+            VALUE "OriginalFilename", "\0"
+            VALUE "PrivateBuild", "\0"
+            VALUE "ProductName", "TMS9900WIN\0"
+            VALUE "ProductVersion", "1.00\0"
+            VALUE "SpecialBuild", "\0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x410, 1252
+    END
+END
+
+#endif    // !_MAC
+
+
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// TEXTINCLUDE
+//
+
+1 TEXTINCLUDE DISCARDABLE 
+BEGIN
+    "resource.h\0"
+END
+
+2 TEXTINCLUDE DISCARDABLE 
+BEGIN
+    "#include ""afxres.h""\r\n"
+    "\0"
+END
+
+3 TEXTINCLUDE DISCARDABLE 
+BEGIN
+    "\r\n"
+    "\0"
+END
+
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog
+//
+
+IDD_ABOUT DIALOG DISCARDABLE  17, 15, 331, 117
+STYLE DS_MODALFRAME | DS_CENTER | WS_CAPTION | WS_SYSMENU
+CAPTION "Informazioni su TMS9900"
+FONT 8, "MS Sans Serif"
+BEGIN
+    CTEXT           "Emulatore TMS9900",IDC_STATIC,0,6,204,8
+    CTEXT           "Versione 1.00",IDC_STATIC,48,24,105,8
+    CTEXT           "Copyright © 2023-2025 Dario Greggio; ADPM Synthesis",
+                    IDC_STATIC,0,72,331,9
+    DEFPUSHBUTTON   "OK",1,121,101,40,14,WS_GROUP
+    ICON            IDI_APP32,IDC_STATIC,9,18,20,20,SS_REALSIZEIMAGE | 
+                    SS_SUNKEN | WS_GROUP
+    CTEXT           "",IDS_ABOUT2,0,48,161,8
+    CTEXT           "",IDC_OSVERSION,0,57,161,8
+    PUSHBUTTON      "&Shareware info...",3,169,100,57,14
+    CTEXT           "email: adpm.to@inwind.it",IDC_STATIC,0,85,331,9
+END
+
+IDD_DUMP DIALOG DISCARDABLE  0, 0, 267, 141
+STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Dump pagina 0"
+FONT 8, "MS Sans Serif"
+BEGIN
+    DEFPUSHBUTTON   "OK",IDOK,110,125,50,14
+    LISTBOX         IDC_LIST1,5,5,255,110,LBS_NOINTEGRALHEIGHT | WS_VSCROLL | 
+                    WS_TABSTOP
+END
+
+IDD_DUMP1 DIALOG DISCARDABLE  0, 0, 267, 141
+STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Dump dispositivi"
+FONT 8, "MS Sans Serif"
+BEGIN
+    LTEXT           "VIC:",IDC_STATIC,5,10,15,10
+    LISTBOX         IDC_LIST1,25,5,235,35,LBS_NOINTEGRALHEIGHT | WS_TABSTOP
+    LTEXT           "SID:",IDC_STATIC,5,50,15,10
+    LISTBOX         IDC_LIST2,25,45,235,30,LBS_NOINTEGRALHEIGHT | WS_VSCROLL | 
+                    WS_TABSTOP
+    LTEXT           "CIA1:",IDC_STATIC,5,85,20,10
+    LISTBOX         IDC_LIST3,25,80,235,15,LBS_NOINTEGRALHEIGHT | WS_TABSTOP
+    LTEXT           "CIA2:",IDC_STATIC,5,105,20,10
+    LISTBOX         IDC_LIST4,25,100,235,15,LBS_NOINTEGRALHEIGHT | 
+                    WS_VSCROLL | WS_TABSTOP
+    DEFPUSHBUTTON   "OK",IDOK,110,125,50,14
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Icon
+//
+
+// Icon with lowest ID value placed first to ensure application icon
+// remains consistent on all systems.
+IDI_APP32               ICON    DISCARDABLE     "TMS9900win.ICO"
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Menu
+//
+
+IDR_MENU1 MENU DISCARDABLE 
+BEGIN
+    POPUP "&Emulatore"
+    BEGIN
+        MENUITEM "&Carica memoria...",          ID_FILE_OPEN
+        MENUITEM "&Salva memoria...",           ID_FILE_SAVE_AS
+        MENUITEM SEPARATOR
+        MENUITEM "Cartrid&ge",                  ID_EMULATORE_CARTRIDGE
+        , INACTIVE
+        MENUITEM SEPARATOR
+        MENUITEM "&Reset",                      ID_OPZIONI_RESET
+        MENUITEM SEPARATOR
+        MENUITEM "&Esci",                       ID_APP_EXIT
+    END
+    POPUP "E&dit"
+    BEGIN
+        MENUITEM "&Copia",                      ID_EDIT_COPY
+        MENUITEM "&Incolla\tShift+Ins",         ID_EDIT_PASTE
+    END
+    POPUP "&Opzioni"
+    BEGIN
+        MENUITEM "&Periferiche...",             ID_OPZIONI_NOASCII
+        MENUITEM "&Debug",                      ID_OPZIONI_DEBUG
+        MENUITEM "Trace",                       ID_OPZIONI_TRACE
+        MENUITEM SEPARATOR
+        MENUITEM "D&ump pagina 0...",           ID_OPZIONI_DUMP
+        MENUITEM "Dump d&ispositivi...",        ID_OPZIONI_DUMPDISP
+        MENUITEM SEPARATOR
+        MENUITEM "Dimensione d&oppia",          ID_OPZIONI_DIMENSIONEDOPPIA
+        MENUITEM "&Aggiorna\tF5",               ID_OPZIONI_AGGIORNA
+        MENUITEM "Velocità...",                 65535
+    END
+    POPUP "&?"
+    BEGIN
+        MENUITEM "&Sommario...\tF1",            ID_HELP
+        MENUITEM "Cerca &argomento...",         ID_HELP_INDEX
+        MENUITEM "Come usare la &Guida",        ID_HELP_USING
+        MENUITEM SEPARATOR
+        MENUITEM "&Informazioni sull'emulatore TMS9900...", ID_APP_ABOUT
+    END
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// DESIGNINFO
+//
+
+#ifdef APSTUDIO_INVOKED
+GUIDELINES DESIGNINFO DISCARDABLE 
+BEGIN
+    IDD_DUMP, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 260
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 134
+    END
+
+    IDD_DUMP1, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 260
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 134
+    END
+END
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Bitmap
+//
+
+IDB_TI99                BITMAP  DISCARDABLE     "bitmap1.bmp"
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// String Table
+//
+
+STRINGTABLE DISCARDABLE 
+BEGIN
+    IDS_OPENSTRING1         "NAUTILUS"
+END
+
+#endif    // Italian (Italy) resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+/////////////////////////////////////////////////////////////////////////////
+// English (U.K.) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENG)
+#ifdef _WIN32
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_UK
+#pragma code_page(1252)
+#endif //_WIN32
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Accelerator
+//
+
+IDR_ACCELERATOR1 ACCELERATORS DISCARDABLE 
+BEGIN
+    VK_F5,          ID_OPZIONI_AGGIORNA,    VIRTKEY, NOINVERT
+END
+
+#endif    // English (U.K.) resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+
+#ifndef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 3 resource.
+//
+
+
+/////////////////////////////////////////////////////////////////////////////
+#endif    // not APSTUDIO_INVOKED
+
