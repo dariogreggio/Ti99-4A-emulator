@@ -152,7 +152,7 @@ int UpdateScreen(HDC hDC,SWORD rowIni, SWORD rowFin) {
     }
   else if(rowIni>=0 && rowIni<=192) {
     
-		switch(videoMode) {    
+		switch(videoMode) {
 			case 0:     // graphics 1
 				for(py=rowIni/8; py<rowFin/8; py++) {    // 192 
 					p2=((BYTE*)&TMSVideoRAM[videoAddress]) + (py*32 /*HORIZ_SIZE/8*/);
@@ -247,6 +247,7 @@ handle_sprites:
 						j--;
 						switch(j) {   // gestisco i "quadranti" sprite messi a cazzo...
 							case 23:
+	//              setAddrWindow(sa->xpos/2,sa->ypos/2+8/2,8/2,8/2);
 								pVideoRAM=(BYTE*)&TMSVideoRAM[0]+(py+sa->ypos+8)*(((HORIZ_SIZE/2)+(HORIZ_OFFSCREEN*2)))+sa->xpos;
 								break;
 							case 15:
@@ -285,10 +286,10 @@ handle_sprites:
 										graphColors[ch2 & B8(00000100 ? color1 : color0]);
 						writedata16x2(graphColors[ch2 & B8(00000010 ? color1 : color0],
 										graphColors[ch2 & B8(00000001 ? color1 : color0]);*/
-							*pVideoRAM++=((ch2 & B8(10000000) ? color1 : color0) << 4) | (ch2 & B8(01000000) ? color1 : color0);
-							*pVideoRAM++=((ch2 & B8(00100000) ? color1 : color0) << 4) | (ch2 & B8(00010000) ? color1 : color0);
-							*pVideoRAM++=((ch2 & B8(00001000) ? color1 : color0) << 4) | (ch2 & B8(00000100) ? color1 : color0);
-							*pVideoRAM++=((ch2 & B8(00000010) ? color1 : color0) << 4) | (ch2 & B8(00000001) ? color1 : color0);
+						*pVideoRAM++=((ch2 & B8(10000000) ? color1 : color0) << 4) | (ch2 & B8(01000000) ? color1 : color0);
+						*pVideoRAM++=((ch2 & B8(00100000) ? color1 : color0) << 4) | (ch2 & B8(00010000) ? color1 : color0);
+						*pVideoRAM++=((ch2 & B8(00001000) ? color1 : color0) << 4) | (ch2 & B8(00000100) ? color1 : color0);
+						*pVideoRAM++=((ch2 & B8(00000010) ? color1 : color0) << 4) | (ch2 & B8(00000001) ? color1 : color0);
 						}
 					}
 				for(py=rowFin/3; py<(rowFin*2)/3; py++) {    //
@@ -503,8 +504,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 							_lclose(myFile);
 							}
 						else
-							MessageBox(hWnd,"Impossibile caricare",
-								szAppName,MB_OK|MB_ICONHAND);
+							MessageBox(hWnd,"Impossibile caricare",szAppName,MB_OK|MB_ICONHAND);
 						}
 
 					}
@@ -516,6 +516,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 
 				case ID_OPZIONI_TRACE:
 //					_f.SR.Trace =!_f.SR.Trace ;
+
+						myFile=_lcreat("tms9918.bin",0);			// debug video!
+						if(myFile != -1) {
+							_lwrite(myFile,TMSVideoRAM,TMSVIDEORAM_SIZE);
+							_lclose(myFile);
+							}
+
 					break;
 
 				case ID_OPZIONI_DIMENSIONEDOPPIA:

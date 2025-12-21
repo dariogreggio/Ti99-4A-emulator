@@ -36,7 +36,7 @@ BYTE TMS9918Reg[8],TMS9918RegS,TMS9918Sel,TMS9918WriteStage,TMS9918Buffer;
 WORD TMS9918RAMPtr;
 BYTE TMS9919[1];    // https://www.unige.ch/medecine/nouspikel/ti99/tms9919.htm
 BYTE TMS9901[32];   // https://www.unige.ch/medecine/nouspikel/ti99/tms9901.htm
-BYTE TMS5220[64];		// https://www.unige.ch/medecine/nouspikel/ti99/speech.htm
+BYTE TMS5220[1];		// https://www.unige.ch/medecine/nouspikel/ti99/speech.htm
 BYTE TMSVideoRAM[TMSVIDEORAM_SIZE];		// 
 extern BYTE CPUPins;
 extern SWORD Pipe1;
@@ -54,20 +54,19 @@ uint8_t _fastcall GetValue(uint16_t t) {
 		}
 	else if(t >= RAM_START && t < (RAM_START+RAM_SIZE*4)) {   // 256, mirrored (?)
 		uint16_t t2;
-		t2 = (t-RAM_START) & /*0xff*/ 0xfe;
+		t2 = (t-RAM_START) & 0xfe /*0xfe*/;
 
 
-      if(t == 0x072 || t == 0x073 || t == 0x074 ) {
+/*      if(t == 0x072 || t == 0x073 || t == 0x074 ) {
 				int T;
         T=0;
-        }
+        }*/
 
 
 		if(!(t & 1))			// patch big-endian. ev. cambiare
-			i=ram_seg[t2+1];
-		else
 			i=ram_seg[t2];
-//		i=ram_seg[t2];
+		else
+			i=ram_seg[t2+1];
 		}
 	else switch(t) {
     case 0x8400:		// sound
@@ -77,7 +76,6 @@ uint8_t _fastcall GetValue(uint16_t t) {
       TMS9918WriteStage=0;
       i=TMS9918Buffer;
       TMS9918Buffer=TMSVideoRAM[(TMS9918RAMPtr++) & (TMSVIDEORAM_SIZE-1)];
-      TMS9918WriteStage = 0;
       break;
     case 0x8802:		// VDP read status register
       i=TMS9918RegS;
@@ -91,15 +89,14 @@ uint8_t _fastcall GetValue(uint16_t t) {
       TMS9918WriteStage = 0;
       break;
     case 0x9400:		// speech
-      i=TMS5220[t & 0x3f];
+      i=TMS5220[0];
       break;
     case 0x9800:		// GROM read page 0
     case 0x9820:		// GROM read page 1			VERIFICARE!
     case 0x9840:		// GROM read page 2			VERIFICARE!
       if(GROMPtr >= GROM_START && GROMPtr < (GROM_START+GROM_SIZE)) {   // 
-//        i=GROMBuffer;
-        i=grom_seg[GROMPtr-GROM_START];
-        GROMPtr++;
+        i=GROMBuffer;
+        GROMBuffer = grom_seg[(GROMPtr++ - GROM_START) & (GROM_SIZE-1)];
         }
 //			else {
 //				i=UNIMPLEMENTED_MEMORY;
@@ -107,23 +104,28 @@ uint8_t _fastcall GetValue(uint16_t t) {
       GROMWriteStage=0;
       break;
     case 0x9802:		// GROM read address
+    // da Classic99: address read is destructive;  Is the address incremented anyway? ie: if you keep reading, what do you get?
+			i=HIBYTE(GROMPtr);		//uint8_t z=(GRMADD&0xff00)>>8;
+			GROMPtr=MAKEWORD(LOBYTE(GROMPtr),LOBYTE(GROMPtr));		// 		GRMADD=(((GRMADD&0xff)<<8)|(GRMADD&0xff));
+#if 0
       if(!GROMWriteStage) {   // least significant byte goes first
 		    i=HIBYTE(GROMPtr);		// big endian
-//         GROMWriteStage = 1;
+        GROMWriteStage = 1;
         }
       else {    // https://forums.atariage.com/topic/360111-grom-addressing-for-dummies-please/ https://www.unige.ch/medecine/nouspikel/ti99/titechpages.htm
 		    i=LOBYTE(GROMPtr);		// big endian
-//          GROMWriteStage = 0;
+        GROMWriteStage = 0;
 	      }
+#endif
       break;
-    case 0x9c00:		// GROM write data
+    case 0x9c00:		// GROM write data (non dovrebbe esistere
       if(GROMPtr >= GROM_START && GROMPtr < (GROM_START+GROM_SIZE)) {   //  (non dovrebbe esistere
 //      i=grom_seg[t-GROM_START];
         }
-      GROMWriteStage;
+      GROMWriteStage=0;
       break;
     case 0x9c02:		// GROM set address (non dovrebbe esistere
-      GROMWriteStage;
+      GROMWriteStage=0;
       break;
 		}
 
@@ -132,6 +134,7 @@ uint8_t _fastcall GetValue(uint16_t t) {
 
 uint16_t _fastcall GetIntValue(uint16_t t) {
 	register uint16_t i;
+	uint16_t t2=t;
 
 	if(t < ROM_SIZE) {			//
     t &= 0xfffe;
@@ -147,8 +150,13 @@ uint16_t _fastcall GetIntValue(uint16_t t) {
         }
 
 
-    t &= 0xfe;
-		i=MAKEWORD(ram_seg[t+1],ram_seg[t]);		// big-endian
+    t &= 0xfe /*0xfe*/;
+		if(!(t2 & 1)) {			// patch big-endian. ev. cambiare
+			i=MAKEWORD(ram_seg[t+1],ram_seg[t]);		// big-endian
+			}
+		else {
+			i=MAKEWORD(ram_seg[t+1],ram_seg[t+2]);		// big-endian
+			}
 		}
 
 	return i;
@@ -170,7 +178,7 @@ uint16_t _fastcall GetPipe(uint16_t t) {
 		}
 	else if(t >= RAM_START && t < (RAM_START+RAM_SIZE*4)) {   // 256, mirrored (?) NON SONO SICURO QUA ABBIA SENSO!
 		t-=RAM_START;
-		t &= 0xfe;
+		t &= 0xfe /*0xfe*/;
 	  Pipe1=MAKEWORD(ram_seg[t+1],ram_seg[t]);
 		Pipe2.x=MAKEWORD(ram_seg[t+3],ram_seg[t+2]);
 		}
@@ -184,18 +192,18 @@ void _fastcall PutValue(uint16_t t,uint8_t t1) {
 
 	if(t >= RAM_START && t < (RAM_START+RAM_SIZE*4)) {   // 256, mirrored  (?)
 		uint16_t t2;
-		t2 = (t-RAM_START) & 0xfe;
+		t2 = (t-RAM_START) & 0xfe /*0xfe*/;
 		if(!(t & 1))			// patch big-endian. ev. cambiare
-			ram_seg[t2+1]=t1;
-		else
 			ram_seg[t2]=t1;
-/*		ram_seg[t2]=t1;
-		ram_seg[t2+1]=t1;*/
+		else
+			ram_seg[t2+1]=t1;
 
+
+		/*
       if(t == 0x072 || t == 0x073 || t == 0x074 ) {
 				int T;
         T=0;
-        }
+        }*/
 
 
 		}
@@ -212,9 +220,15 @@ void _fastcall PutValue(uint16_t t,uint8_t t1) {
         break;
       case 0x8c00:	// VDP write data
         TMS9918WriteStage=0;
+
+				{char myBuf[128];
+extern HFILE spoolFile;
+					wsprintf(myBuf,"videoRAM write: %04X: %02x; GROM ptr=%04X\n",TMS9918RAMPtr,t1,GROMPtr);
+				_lwrite(spoolFile/*myFile*/,myBuf,strlen(myBuf));
+				}
         TMSVideoRAM[(TMS9918RAMPtr++) & (TMSVIDEORAM_SIZE-1)]=t1;
+
         TMS9918Buffer = t1;
-        TMS9918WriteStage = 0;
         break;
       case 0x8c02:		// VDP write register
         if(!TMS9918WriteStage) {   /* first stage byte - either an address LSB or a register value */
@@ -224,10 +238,10 @@ void _fastcall PutValue(uint16_t t,uint8_t t1) {
         else {    /* second byte - either a register number or an address MSB */
           if(t1 & 0x80) { /* register */
     //          if((t1 & 0x7f) < 8)
-              TMS9918Reg[t1 & 0x07] = TMS9918Sel;
+            TMS9918Reg[t1 & 0x07] = TMS9918Sel;
             }
           else {  /* address */
-            TMS9918RAMPtr = TMS9918Sel | ((t1 & 0x3f) << 8);
+            TMS9918RAMPtr = MAKEWORD(TMS9918Sel,t1 & 0x3f);
             if(!(t1 & 0x40)) {
               TMS9918Buffer = TMSVideoRAM[(TMS9918RAMPtr++) & (TMSVIDEORAM_SIZE-1)];
               }
@@ -236,18 +250,20 @@ void _fastcall PutValue(uint16_t t,uint8_t t1) {
           } 
         break;
       case 0x9400:		// speech
-        TMS5220[t & 0x3f]=t1;
+        TMS5220[0]=t1;
         break;
       case 0x9800:		// GROM read page 0 (non dovrebbe esistere
 	    case 0x9820:		// GROM read page 1 (non dovrebbe esistere
         if(GROMPtr >= GROM_START && GROMPtr < (GROM_START+GROM_SIZE)) {   // 
+	        GROMPtr++;
+					// wrap...
           }
-        GROMWriteStage;
+        GROMWriteStage=0;
         break;
       case 0x9802:		// GROM read address (non dovrebbe esistere
-        GROMWriteStage;
+        GROMWriteStage=0;
         break;
-      case 0x9c00:		// GROM write data
+      case 0x9c00:		// GROM write data (ev. GRAM, dice
         if(GROMPtr >= GROM_START && GROMPtr < (GROM_START+GROM_SIZE)) {   // 
 					grom_seg[t-GROM_START]=t1;
           }
@@ -255,12 +271,12 @@ void _fastcall PutValue(uint16_t t,uint8_t t1) {
         break;
       case 0x9c02:		// GROM set address
         if(!GROMWriteStage) {   // least significant byte goes first
-          GROMPtr = (GROMPtr) | (((uint16_t)t1) << 8);
+          GROMPtr = MAKEWORD(LOBYTE(GROMPtr),t1);
           GROMWriteStage = 1;
           }
         else {    // https://forums.atariage.com/topic/360111-grom-addressing-for-dummies-please/
-          GROMPtr = t1;
-//          GROMBuffer = grom_seg[(GROMPtr++) & (GROM_SIZE-1)];
+          GROMPtr = MAKEWORD(t1,HIBYTE(GROMPtr));
+          GROMBuffer = grom_seg[(GROMPtr++ - GROM_START) & (GROM_SIZE-1)];
           GROMWriteStage = 0;
 	        }
         break;
@@ -278,14 +294,21 @@ void _fastcall PutValueCRU(uint16_t t,uint8_t t1) {
 
 void _fastcall PutIntValue(uint16_t t,uint16_t t1) {
 	register uint16_t i;
+	uint16_t t2=t;
 
 // printf("rom_seg: %04x, p: %04x\n",rom_seg,p);
 
 	if(t >= RAM_START && t < (RAM_START+RAM_SIZE*4)) {   // 256 bytes, mirrored (?)
 		t-=RAM_START;
-		t &= 0xfe;
-	  ram_seg[t++]=HIBYTE(t1);			// big-endian 
-	  ram_seg[t]  =LOBYTE(t1);
+		t &= 0xfe /*0xfe*/;
+		if(!(t2 & 1)) {			// patch big-endian. ev. cambiare
+		  ram_seg[t++]=HIBYTE(t1);			// big-endian 
+		  ram_seg[t]  =LOBYTE(t1);
+			}
+		else {
+		  ram_seg[t++]=HIBYTE(t1);			// big-endian 
+		  ram_seg[t]=LOBYTE(t1);
+			}
 		}
 
   }
@@ -296,11 +319,17 @@ void initHW(void) {
   int i;
 extern const unsigned char charset_international[2048],tmsFont[(128-32)*8];
   struct SPRITE_ATTR *sa;
+
+	GROMWriteStage=0;
+	GROMPtr=0;
+
   
-	TMS9919[1]=B8(00000000);
+	TMS9919[0]=B8(00000000);
   TMS9901[0]=0;
+  TMS5220[0]=0;
   
   memset(TMSVideoRAM,0,TMSVIDEORAM_SIZE);    // mah...
+// Ti99 dice:	The real 9918A will set all VRs to 0, which basically makes the screen black, blank, and off, 4K VRAM selected, and no interrupts. 
   TMS9918Reg[0]=TMS_R0_EXT_VDP_DISABLE | TMS_R0_MODE_GRAPHICS_I;
   TMS9918Reg[1]=TMS_R1_RAM_16K | TMS_R1_MODE_GRAPHICS_I /* bah   | TMS_R1_DISP_ACTIVE | TMS_R1_INT_ENABLE*/;
   TMS9918Reg[2]=TMS_DEFAULT_VRAM_NAME_ADDRESS >> 10;
@@ -308,7 +337,7 @@ extern const unsigned char charset_international[2048],tmsFont[(128-32)*8];
   TMS9918Reg[4]=TMS_DEFAULT_VRAM_PATT_ADDRESS >> 11;
   TMS9918Reg[5]=TMS_DEFAULT_VRAM_SPRITE_ATTR_ADDRESS >> 7;
   TMS9918Reg[6]=TMS_DEFAULT_VRAM_SPRITE_PATT_ADDRESS >> 11;
-  TMS9918Reg[7]=(1 /*black*/ << 4) | 7 /*cyan*/;
+  TMS9918Reg[7]=(1 /*black*/ << 4) | 15 /*bianco*/;		//(1 /*black*/ << 4) | 7 /*cyan*/;
   TMS9918RegS=0;
   TMS9918Sel=TMS9918WriteStage=0;
   memcpy(TMSVideoRAM+TMS_DEFAULT_VRAM_PATT_ADDRESS,charset_international,2048);// mah...

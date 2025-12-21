@@ -139,11 +139,11 @@ union RESULT {
 #define TMS_R1_SPRITE_MAG2        0x01
 #define LAST_SPRITE_YPOS        0xD0
 
-#define TMS_DEFAULT_VRAM_NAME_ADDRESS          0x3800
-#define TMS_DEFAULT_VRAM_COLOR_ADDRESS         0x0000
-#define TMS_DEFAULT_VRAM_PATT_ADDRESS          0x2000
-#define TMS_DEFAULT_VRAM_SPRITE_ATTR_ADDRESS   0x3B00
-#define TMS_DEFAULT_VRAM_SPRITE_PATT_ADDRESS   0x1800
+#define TMS_DEFAULT_VRAM_NAME_ADDRESS          0x3800		// qua boh
+#define TMS_DEFAULT_VRAM_COLOR_ADDRESS         0x0400
+#define TMS_DEFAULT_VRAM_PATT_ADDRESS          0x0800
+#define TMS_DEFAULT_VRAM_SPRITE_ATTR_ADDRESS   0x0500
+#define TMS_DEFAULT_VRAM_SPRITE_PATT_ADDRESS   0x1000
 extern BYTE TMSVideoRAM[TMSVIDEORAM_SIZE];
 struct SPRITE_ATTR {
   BYTE ypos,xpos;    // v. sotto, a volte usato come signed
@@ -192,6 +192,7 @@ void _fastcall PutValueCRU(SWORD, BYTE);
 int Emulate(int);
 BOOL CenterWindow(HWND, HWND);
 int WritePrivateProfileInt(char *,char *,int,char *);
+void initHW();
 
 
 
