@@ -98,9 +98,9 @@ uint8_t _fastcall GetValue(uint16_t t) {
         i=GROMBuffer;
         GROMBuffer = grom_seg[(GROMPtr++ - GROM_START) & (GROM_SIZE-1)];
         }
-//			else {
-//				i=UNIMPLEMENTED_MEMORY;
-//				}
+			else {
+				i=UNIMPLEMENTED_MEMORY_VALUE;
+				}
       GROMWriteStage=0;
       break;
     case 0x9802:		// GROM read address
@@ -155,7 +155,7 @@ uint16_t _fastcall GetIntValue(uint16_t t) {
 			i=MAKEWORD(ram_seg[t+1],ram_seg[t]);		// big-endian
 			}
 		else {
-			i=MAKEWORD(ram_seg[t+1],ram_seg[t+2]);		// big-endian
+			i=MAKEWORD(ram_seg[t+1],ram_seg[t]);		// big-endian
 			}
 		}
 

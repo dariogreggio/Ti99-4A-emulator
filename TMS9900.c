@@ -261,11 +261,12 @@ int Emulate(int mode) {
 					"%04x %04x %04x %04x %04x %04x %04x %04x-"
 					"%04x %04x %04x %04x %04x %04x %04x %04x "
 					"(%16s)  %04X "
-					"; %04X %02X\n",_pc,_wp,
+					"; %04X %02X  %02X %02X %02X\n",_pc,_wp,
 					GET_REG(0),GET_REG(1),GET_REG(2),GET_REG(3),GET_REG(4),GET_REG(5),GET_REG(6),GET_REG(7),
 					GET_REG(8),GET_REG(9),GET_REG(10),GET_REG(11),GET_REG(12),GET_REG(13),GET_REG(14),GET_REG(15),
 					myBuf2, GetPipe(_pc) , 
-					GROMPtr,grom_seg[GROMPtr-GROM_START]);
+					GROMPtr,grom_seg[GROMPtr-GROM_START],
+					ram_seg[0x72],ram_seg[0x73],ram_seg[0xd0]);
 				}
 			else
 				strcpy(myBuf,"RESET\n");
@@ -337,7 +338,7 @@ int Emulate(int mode) {
 
     
 		{			extern WORD GROMPtr;
-      if(_pc == 0x070 && GROMPtr==0x1a0) {
+      if(/*_pc == 0x258 */ /*_pc == 0xb24 && */GROMPtr==0xe001) {
 				int T;
         T=0;
         }
@@ -1462,7 +1463,6 @@ store16_012:
             break;
           }
         res3.b.l=res2.b.l & ~res1.b.l;
-        
         goto store8_012;
         break;
       

@@ -26,7 +26,7 @@ char szAppName[] = APPNAME; // The name of this application
 char INIFile[] = APPNAME".ini";
 char szTitle[]   = APPNAME; // The title bar text
 int AppXSize=534,AppYSize=358,AppYSizeR,YXRatio=1;		// così il rapporto è ok, ev. ingandire o rimpicciolire
-BOOL fExit,debug=1, doppiaDim;
+BOOL fExit,debug=0, doppiaDim;
 HWND ghWnd,hStatusWnd;
 HBRUSH hBrush;
 HPEN hPen1;
