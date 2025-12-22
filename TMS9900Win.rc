@@ -189,7 +189,14 @@ BEGIN
         MENUITEM SEPARATOR
         MENUITEM "Dimensione d&oppia",          ID_OPZIONI_DIMENSIONEDOPPIA
         MENUITEM "&Aggiorna\tF5",               ID_OPZIONI_AGGIORNA
-        MENUITEM "Velocità...",                 65535
+        POPUP "Velocità"
+        BEGIN
+            MENUITEM "&Lento",                      ID_OPZIONI_VELOCIT_LENTO
+            MENUITEM "&Normale",                    ID_OPZIONI_VELOCIT_NORMALE
+
+            MENUITEM "&Veloce",                     ID_OPZIONI_VELOCIT_VELOCE
+
+        END
     END
     POPUP "&?"
     BEGIN
@@ -235,6 +242,13 @@ END
 //
 
 IDB_TI99                BITMAP  DISCARDABLE     "bitmap1.bmp"
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// WAVE
+//
+
+IDR_WAVE_TONE1          WAVE    DISCARDABLE     "ibmbeep.wav"
 
 /////////////////////////////////////////////////////////////////////////////
 //

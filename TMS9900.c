@@ -41,6 +41,7 @@ volatile BYTE TIMIRQ,VIDIRQ;
 
 
 BYTE CPUPins=DoReset;
+WORD CPUClock=2000000L/CPU_CLOCK_DIVIDER,HWClock=1000000L/CPU_CLOCK_DIVIDER;
 #define MAX_WATCHDOG 100      // x30mS v. sotto
 WORD WDCnt=MAX_WATCHDOG;
 BYTE ColdReset=1;
@@ -65,85 +66,6 @@ int Emulate(int mode) {
 	BOOL bMsgAvail;
 	MSG msg;
 	HDC hDC;
-
-
-//https://en.wikipedia.org/wiki/TMS9900
-#define WORKING_REG_INDEX (Pipe1 & 0xf)
-#define GET_REG(q) (MAKEWORD(regs->r[q].b.h,regs->r[q].b.l))      // 
-#define GET_WORKING_REG() GET_REG(workingRegIndex)      // 
-#define SET_REG(q,n) {regs->r[q].b.l=HIBYTE(n);regs->r[q].b.h=LOBYTE(n);}      // 
-#define SET_WORKING_REG(n) SET_REG(workingRegIndex,n);
-#define WORKING_TS ((Pipe1 >> 4) & B8(11))
-#define WORKING_TD ((Pipe1 >> 10) & B8(11))
-#define REGISTER_DIRECT 0
-#define REGISTER_INDIRECT 1
-#define REGISTER_SYMBOLIC_INDEXED 2
-#define REGISTER_INDIRECT_AUTOINCREMENT 3
-#define WORKING_REG2_INDEX ((Pipe1 >> 6) & 0xf)
-#define GET_WORKING_REG2() GET_REG(workingReg2Index)      // 
-#define SET_WORKING_REG2(n) SET_REG(workingReg2Index,n);
-
-// USARE, MA OCCHIO!!
-#define COMPUTE_SOURCE \
-  switch(workingTS) {\
-    case REGISTER_DIRECT:\
-      res1.x=WORKING_REG;\
-      break;\
-    case REGISTER_INDIRECT:\
-      res1.x=GetIntValue(WORKING_REG);\
-      break;\
-    case REGISTER_SYMBOLIC_INDEXED:\
-      if(workingRegIndex)\
-        res1.x=GetIntValue(WORKING_REG+(int16_t)Pipe2.x);\
-      else\
-        res1.x=GetIntValue(Pipe2.x);\
-      GetPipe(_pc);\
-      _pc+=2;\
-      break;\
-    case ADDR_REGISTER_INDIRECT_POSTINCREMENT:\
-      res1.x=GetIntValue(WORKING_REG);\
-      SET_WORKING_REG(GET_WORKING_REG()+2);\
-      break;\
-    }
-#define COMPUTE_SOURCE2 \
-  switch(workingTD) {\
-    case REGISTER_DIRECT:\
-      res2.x=GET_WORKING_REG2();\
-      break;\
-    case REGISTER_INDIRECT:\
-      res2.x=GetIntValue(GET_WORKING_REG2());\
-      break;\
-    case REGISTER_SYMBOLIC_INDEXED:\
-      if(workingReg2Index)\
-        res2.x=GetIntValue(GET_WORKING_REG2()+(int16_t)Pipe2.x);\
-      else\
-        res2.x=GetIntValue(Pipe2.x);\
-      _pc+=2;\
-      break;\
-    case ADDR_REGISTER_INDIRECT_POSTINCREMENT:\
-      res2.x=GetIntValue(GET_WORKING_REG2());\
-      break;\
-    }
-#define COMPUTE_DEST \
-  switch(workingTD) {\
-    case REGISTER_DIRECT:\
-      WORKING_REG2=res3.x;\
-      break;\
-    case REGISTER_INDIRECT:\
-      PutIntValue(GET_WORKING_REG2(),res3.x);\
-      break;\
-    case REGISTER_SYMBOLIC_INDEXED:\
-      if(workingReg2Index)\
-        PutIntValue(GET_WORKING_REG2()+(int16_t)Pipe2.x,res3.x);\
-      else\
-        PutIntValue(Pipe2.x,res3.x);\
-      _pc+=2;\
-      break;\
-    case ADDR_REGISTER_INDIRECT_POSTINCREMENT:\
-      PutIntValue(GET_WORKING_REG2(),res3.x);\
-      SET_WORKING_REG2(GET_WORKING_REG2()+2);\
-      break;\
-    }
 	
 	SWORD _pc=0;
 	SWORD _wp=0;
@@ -156,6 +78,11 @@ int Emulate(int mode) {
   uint8_t workingTS,workingTD,workingRegIndex,workingReg2Index;
   int c=0;
 
+	DWORD cyclesPerSec,cyclesSoFar,cyclesCPU,cyclesHW;
+
+	cyclesPerSec=10000000L;		// AT
+	cyclesCPU=0; cyclesHW=0;
+	cyclesSoFar=0;
 
   _pc=GetIntValue(0x0002);
   _wp=GetIntValue(0x0000);
@@ -168,6 +95,8 @@ int Emulate(int mode) {
   
 
 	do {
+
+		cyclesSoFar++;
 
 		c++;
 		if(!(c & 0x3ffff)) {
@@ -227,11 +156,63 @@ int Emulate(int mode) {
       TIMIRQ=0;
       }
     if(VIDIRQ) {
-//      CPUPins |= DoIRQ;
+      CPUPins |= DoIRQ;
       VIDIRQ=0;
       }
 
     
+		if(CPUPins & DoReset) {
+			_pc=GetIntValue(0x0002);
+			_wp=GetIntValue(0x0000);
+      _st.x=0;
+			IPL=B8(0001);   // Ti99
+			CPUPins &= ~(DoReset | DoIdle);
+      initHW();
+      continue;
+			}
+		if(CPUPins & DoLOAD) {
+			CPUPins &= ~(DoLOAD | DoIdle);
+//?? serve			IPL=B8(1111);
+			_pc=GetIntValue(0xfffe);
+			_wp=GetIntValue(0xfffc);
+
+      }
+		if(CPUPins & DoIRQ) {   // https://www.unige.ch/medecine/nouspikel/ti99/ints.htm
+      
+      // LED2^=1;    // 
+			CPUPins &= ~(DoIdle);
+      
+			if(IPL <= _st.InterruptMask) {		// TMS9900 will perform BLWP @>0000 through BLWP @>003C depending on the interrupt level. 
+//??				IPL = _st.InterruptMask;
+				CPUPins &= ~DoIRQ;
+        i=_wp;
+    		_wp=GetIntValue(0x0006+IPL*2);
+		    regs=(union Z_REGISTERS *)&ram_seg[_wp & 0xff /* -RAM_START */];     // così oppure cast diretto...
+        SET_REG(14,_pc);		// VERIFICARE!
+  			_pc=GetIntValue(0x0004+IPL*2);
+        SET_REG(13,i);
+        SET_REG(15,_st.x);
+       
+				}
+			}
+
+  
+		if(CPUPins & DoIdle) {
+      //mettere ritardino per analogia con le istruzioni?
+//      __delay_ns(500); non va più nulla... boh...
+			continue;		// esegue cmq IRQ 
+      }
+
+//printf("Pipe1: %02x, Pipe2w: %04x, Pipe2b1: %02x,%02x\n",Pipe1,Pipe2.word,Pipe2.bytes.byte1,Pipe2.bytes.byte2);
+    
+    
+
+//      LED2^=1;    // ~700nS 7/6/20, ~600 con 32bit 10/7/21
+
+		if(cyclesSoFar<cyclesCPU)		//(ovviamente si pianta nei test timer/DMA... GLABios, PCXTBios va
+			goto rallenta;
+		cyclesCPU += CPUClock;
+
 		/*
 		if((_pc >= 0xa000) && (_pc <= 0xbfff)) {
 			printf("%04x    %02x\n",_pc,GetValue(_pc));
@@ -289,56 +270,9 @@ int Emulate(int mode) {
 			printf("33-34: %02x %02x\n",*(p1+0x33),*(p1+0x34));
 			printf("37-38: %02x %02x\n",*(p1+0x37),*(p1+0x38));
 			}*/
-		if(CPUPins & DoReset) {
-			_pc=GetIntValue(0x0002);
-			_wp=GetIntValue(0x0000);
-      _st.x=0;
-			IPL=B8(0001);   // Ti99
-			CPUPins &= ~(DoReset | DoIdle);
-      initHW();
-      continue;
-			}
-		if(CPUPins & DoLOAD) {
-			CPUPins &= ~(DoLOAD | DoIdle);
-//?? serve			IPL=B8(1111);
-			_pc=GetIntValue(0xfffe);
-			_wp=GetIntValue(0xfffc);
-
-      }
-		if(CPUPins & DoIRQ) {   // https://www.unige.ch/medecine/nouspikel/ti99/ints.htm
-      
-      // LED2^=1;    // 
-			CPUPins &= ~(DoIdle);
-      
-			if(IPL <= _st.InterruptMask) {
-//??				IPL = _st.InterruptMask;
-				CPUPins &= ~DoIRQ;
-        i=_wp;
-    		_wp=GetIntValue(0x0000+IPL*2);
-        SET_REG(11,_pc);		// VERIFICARE!
-  			_pc=GetIntValue(0x0002+IPL*2);
-        SET_REG(13,i);
-        SET_REG(15,_st.x);
-       
-				}
-			}
-
-  
-		if(CPUPins & DoIdle) {
-      //mettere ritardino per analogia con le istruzioni?
-//      __delay_ns(500); non va più nulla... boh...
-			continue;		// esegue cmq IRQ 
-      }
-
-//printf("Pipe1: %02x, Pipe2w: %04x, Pipe2b1: %02x,%02x\n",Pipe1,Pipe2.word,Pipe2.bytes.byte1,Pipe2.bytes.byte2);
-    
-    
-
-//      LED2^=1;    // ~700nS 7/6/20, ~600 con 32bit 10/7/21
-
     
 		{			extern WORD GROMPtr;
-      if(/*_pc == 0x258 */ /*_pc == 0xb24 && */GROMPtr==0xe001) {
+      if(_pc == 0x25a  /*_pc == 0xb24 && */ /*_pc == 0xc0c*/ && GROMPtr==0x1d0) {
 				int T;
         T=0;
         }
@@ -535,6 +469,7 @@ aggFlag16Z:
                 }
               i=_wp;
           		_wp=GetIntValue(0x0000+res3.x);
+						  regs=(union Z_REGISTERS *)&ram_seg[_wp & 0xff /* -RAM_START */];     // così oppure cast diretto...
               SET_REG(14,_pc);
             	_pc=GetIntValue(0x0002+res3.x);
               SET_REG(13,i);
@@ -911,7 +846,7 @@ compare16:
             if(!_st.ArithmeticGreater && !_st.Zero)
               goto Jump;
             break;
-          case B8(00010000) << 8:     // JMP Jump unconditional
+          case B8(00010000) << 8:     // JMP Jump unconditional  (se 0x1000 vale come NOP !
 Jump:
     				_pc += (int8_t)LOBYTE(Pipe1) *2;
             break;
@@ -1630,6 +1565,7 @@ store_dca:
               default:   // XOP
                 i=_wp;
                 _wp=GetIntValue(0x0040+GET_REG((Pipe1 & B16(11,11000000)) >> 6)*4);
+						    regs=(union Z_REGISTERS *)&ram_seg[_wp & 0xff /* -RAM_START */];     // così oppure cast diretto...
                 SET_REG(11,res3.x);
                 SET_REG(13,i);
                 SET_REG(14,_pc);
@@ -1642,6 +1578,7 @@ store_dca:
 #else
             i=_wp;
          		_wp=GetIntValue(0x0040+GET_REG((Pipe1 & B16(11,11000000)) >> 6)*4);
+				    regs=(union Z_REGISTERS *)&ram_seg[_wp & 0xff /* -RAM_START */];     // così oppure cast diretto...
             SET_REG(11,res3.x);
             SET_REG(13,i);
             SET_REG(14,_pc);
@@ -1675,13 +1612,14 @@ store_dca:
           }
     		switch(Pipe1 & B16(11111100,00000000)) {
           case B8(001110) << 10:     // MPY Multiply
+						res2.x=GET_WORKING_REG2();
             res3.d = res1.x * res2.x;
             SET_WORKING_REG2(HIWORD(res3.d));
-            SET_REG((((Pipe1 >> 8) +1) & 0xf),res3.x);   // OKKIO, porcata, & se 15...
+            SET_REG(((WORKING_REG2_INDEX+1) & 0xf),res3.x);   // OKKIO, porcata, & se 15...
 //no!            goto aggFlag;
             break;
           case B8(001111) << 10:     // DIV Divide
-            res2.d = MAKELONG(GET_WORKING_REG2(),GET_REG(((Pipe1 >> 8) +1) & 0xf));    // OKKIO...
+            res2.d = MAKELONG(GET_REG((WORKING_REG2_INDEX+1) & 0xf),GET_WORKING_REG2());    // OKKIO...
             if(!res1.x) {
               //DIVIDE ZERO??
               }
@@ -1706,47 +1644,52 @@ store_dca:
           }
       }
       }*/
-            if( (((res1.x & 0x8000) == 0 && (res2.x & 0x8000) == 0x8000))
-              || ((res1.x & 0x8000) == (res2.x & 0x8000) && (((res2.x - res1.x) & 0x8000) == 0)) )
+            res3.d = res2.d / (uint32_t)res1.x;		// signed o unsigned??
+            if( res1.x < LOBYTE(res3.d) )
               _st.Overflow = 1;
             else {
-              res3.d = res2.d / (uint32_t)res1.x;
               SET_WORKING_REG2(LOWORD(res3.d));
-              SET_REG(((Pipe1 >> 8) +1) & 0xf,res2.d % (uint32_t)res1.x);   // OKKIO, porcata, & se 15...
+              SET_REG((WORKING_REG2_INDEX+1) & 0xf,res2.d % (uint32_t)res1.x);   // OKKIO, porcata, & se 15...
               _st.Overflow = 0;
               }
             break;
             
           case B8(001100) << 10:     // LDCR Load communication register
-            GetValueCRU(res1.x);
-//                PutValueCRU();
+						{uint8_t cnt=WORKING_REG2_INDEX;
+            PutValueCRU(GET_REG(12),res1.x,     res1.x,cnt);
+//						goto store16_2;
+						// o flag solo??
+						}
             break;
           case B8(001101) << 10:     // STCR Store communication register
-//                GetValueCRU();
-            PutValueCRU(res1.x,     res1.x);
+						{uint8_t cnt=WORKING_REG2_INDEX;
+            res3.x=GetValueCRU(GET_REG(12),res1.x,cnt);
+						goto store16_2;
+						}
             break;
             
           case B8(000111) << 10:     // SBO SBZ TB (CRU operations)
         		switch(Pipe1 & B16(11111111,00000000)) {    // https://www.unige.ch/medecine/nouspikel/ti99/cru.htm
               case B8(00111101) << 8:     // SBO Set bit to one
-                GetValueCRU(res1.x);
+                GetValueCRU(GET_REG(12),res1.x,0);
 //                PutValueCRU();
                 break;
               case B8(00111110) << 8:     // SBZ Set bit to zero
-                GetValueCRU(res1.x);
+                GetValueCRU(GET_REG(12),res1.x,0);
 //                PutValueCRU();
                 break;
               case B8(00111111) << 8:     // TB Test bit 
-                GetValueCRU(res1.x);
+                GetValueCRU(GET_REG(12),res1.x,0);
                 break;
               }
             break;
           }
         break;
 
-        
-			
 			}
+
+rallenta:
+			;
 		} while(!fExit);
 	}
 
