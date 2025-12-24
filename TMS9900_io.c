@@ -28,6 +28,9 @@ BYTE rom_seg[ROM_SIZE];
 BYTE rom_seg2[ROM_SIZE2];
 #endif
 BYTE grom_seg[GROM_SIZE];		// 3x	
+#ifdef GROM_SIZE2
+BYTE grom_seg2[GROM_SIZE2];
+#endif
 WORD GROMPtr;
 BYTE GROMWriteStage,GROMBuffer;
 volatile BYTE TIMIRQ,VIDIRQ;
@@ -38,7 +41,7 @@ BYTE TMS9919[1];    // https://www.unige.ch/medecine/nouspikel/ti99/tms9919.htm
 BYTE TMS9901[32];   // https://www.unige.ch/medecine/nouspikel/ti99/tms9901.htm
 BYTE TMS5220[1];		// https://www.unige.ch/medecine/nouspikel/ti99/speech.htm
 BYTE TMSVideoRAM[TMSVIDEORAM_SIZE];		// 
-BYTE Keyboard[8];
+BYTE Keyboard[8],KeyboardCol=0;
 extern BYTE CPUPins;
 extern SWORD Pipe1;
 extern union PIPE Pipe2;
@@ -103,20 +106,37 @@ uint8_t _fastcall GetValue(uint16_t t) {
 				uint8_t sel=(t & 0x3e);
 				switch(sel) {
 					case 0x00:		// GROM read page 0
-						if(GROMPtr >= GROM_START && GROMPtr < (GROM_START+GROM_SIZE)) {   // 
+						{   // 
+							WORD n;
 							i=GROMBuffer;
-							GROMBuffer = grom_seg[(GROMPtr++ - GROM_START) & (GROM_SIZE-1)];
+#ifdef GROM_SIZE2
+							if(GROMPtr<0x6000)
+								GROMBuffer = grom_seg[GROMPtr];
+							else if(GROMPtr<0x6000+0x8000)
+								GROMBuffer = grom_seg2[GROMPtr-0x6000];
+							else
+								GROMBuffer = UNIMPLEMENTED_MEMORY_VALUE;
+#else
+							if(GROMPtr<0x6000)
+								GROMBuffer = grom_seg[GROMPtr];
+							else
+								GROMBuffer = UNIMPLEMENTED_MEMORY_VALUE;
+#endif
+							n=GROMPtr & 0xe000;
+							GROMPtr &= ~0xe000;
+							GROMPtr=(GROMPtr+1-GROM_START) & (GROM_SIZE-1);
+							GROMPtr |= n;
 							}
-						else {
+/*						else {
 							i=UNIMPLEMENTED_MEMORY_VALUE;
-							}
+							}*/
 						GROMWriteStage=0;
 						break;
 					case 0x02:		// GROM read address
 					// da Classic99: address read is destructive;  Is the address incremented anyway? ie: if you keep reading, what do you get?
 						i=HIBYTE(GROMPtr);		//uint8_t z=(GRMADD&0xff00)>>8;
 						GROMPtr=MAKEWORD(LOBYTE(GROMPtr),LOBYTE(GROMPtr));		// 		GRMADD=(((GRMADD&0xff)<<8)|(GRMADD&0xff));
-	#if 0
+#if 0
 						if(!GROMWriteStage) {   // least significant byte goes first
 							i=HIBYTE(GROMPtr);		// big endian
 							GROMWriteStage = 1;
@@ -125,23 +145,59 @@ uint8_t _fastcall GetValue(uint16_t t) {
 							i=LOBYTE(GROMPtr);		// big endian
 							GROMWriteStage = 0;
 							}
-	#endif
+#endif
 						break;
-					case 0x04:		// GROM read address #2
-						i=UNIMPLEMENTED_MEMORY_VALUE;
-	/*					if(GROMPtr >= GROM_START && GROMPtr < (GROM_START+GROM_SIZE)) {   // 
+					case 0x04:		// GROM read page #1
+						{   // 
+							WORD n;
 							i=GROMBuffer;
-							GROMBuffer = grom_seg[(GROMPtr++ - GROM_START) & (GROM_SIZE-1)];
+#ifdef GROM_SIZE2
+							if(GROMPtr<0x6000)
+								GROMBuffer = grom_seg[GROMPtr];
+							else if(GROMPtr<0x6000+0x8000)
+								GROMBuffer = grom_seg2[GROMPtr-0x6000];
+							else
+								GROMBuffer = UNIMPLEMENTED_MEMORY_VALUE;
+#else
+							if(GROMPtr<0x6000)
+								GROMBuffer = grom_seg[GROMPtr];
+							else
+								GROMBuffer = UNIMPLEMENTED_MEMORY_VALUE;
+#endif
+							n=GROMPtr & 0xe000;
+							GROMPtr &= ~0xe000;
+							GROMPtr=(GROMPtr+1-GROM_START) & (GROM_SIZE-1);
+							GROMPtr |= n;
 							}
-						else {
-							i=UNIMPLEMENTED_MEMORY_VALUE;
-							}*/
-						GROMPtr++;
 						GROMWriteStage=0;
 						break;
+					case 0x06:		// GROM read address #1
+					// da Classic99: address read is destructive;  Is the address incremented anyway? ie: if you keep reading, what do you get?
+						i=HIBYTE(GROMPtr);		//uint8_t z=(GRMADD&0xff00)>>8;
+						GROMPtr=MAKEWORD(LOBYTE(GROMPtr),LOBYTE(GROMPtr));		// 		GRMADD=(((GRMADD&0xff)<<8)|(GRMADD&0xff));
+						break;
 					case 0x08:		// GROM read address #3
-						i=UNIMPLEMENTED_MEMORY_VALUE;
-						GROMPtr++;
+						{   // 
+							WORD n;
+							i=GROMBuffer;
+#ifdef GROM_SIZE2
+							if(GROMPtr<0x6000)
+								GROMBuffer = grom_seg[GROMPtr];
+							else if(GROMPtr<0x6000+0x8000)
+								GROMBuffer = grom_seg2[GROMPtr-0x6000];
+							else
+								GROMBuffer = UNIMPLEMENTED_MEMORY_VALUE;
+#else
+							if(GROMPtr<0x6000)
+								GROMBuffer = grom_seg[GROMPtr];
+							else
+								GROMBuffer = UNIMPLEMENTED_MEMORY_VALUE;
+#endif
+							n=GROMPtr & 0xe000;
+							GROMPtr &= ~0xe000;
+							GROMPtr=(GROMPtr+1-GROM_START) & (GROM_SIZE-1);
+							GROMPtr |= n;
+							}
 						GROMWriteStage=0;
 						break;
 					case 0x20:		// GROM read page 1			VERIFICARE! questa arriva ma pare errore, 9b9b (è solo per GramKarte, dice
@@ -157,10 +213,27 @@ uint8_t _fastcall GetValue(uint16_t t) {
 				break;
 			case 0x9c:		// GROM write data (non dovrebbe esistere
 				switch(t & 0xfe) {
-					case 0x00:
-						if(GROMPtr >= GROM_START && GROMPtr < (GROM_START+GROM_SIZE)) {   //  (non dovrebbe esistere
-			//      i=grom_seg[t-GROM_START];
-							}
+					case 0x00:						//  (non dovrebbe esistere
+						{   // 
+						WORD n;
+#ifdef GROM_SIZE2
+							if(GROMPtr<0x6000)
+								GROMBuffer = grom_seg[GROMPtr];
+							else if(GROMPtr<0x6000+0x8000)
+								GROMBuffer = grom_seg2[GROMPtr-0x6000];
+							else
+								GROMBuffer = UNIMPLEMENTED_MEMORY_VALUE;
+#else
+							if(GROMPtr<0x6000)
+								GROMBuffer = grom_seg[GROMPtr];
+							else
+								GROMBuffer = UNIMPLEMENTED_MEMORY_VALUE;
+#endif
+						n=GROMPtr & 0xe000;
+						GROMPtr &= ~0xe000;
+						GROMPtr=(GROMPtr+1-GROM_START) & (GROM_SIZE-1);
+						GROMPtr |= n;
+						}
 						GROMWriteStage=0;
 						break;
 					case 0x02:		// GROM set address (non dovrebbe esistere
@@ -201,26 +274,43 @@ uint16_t _fastcall GetIntValue(uint16_t t) {
 	return i;
 	}
 
-uint16_t _fastcall GetValueCRU(uint16_t r12,uint16_t t,uint8_t cnt) {
+uint16_t _fastcall GetValueCRU(uint16_t r12,uint8_t cnt) {
+	uint8_t i,t;
 
-	t=t+r12;
-	while(cnt--)
-		;
-
-/*					{char myBuf[128];
+#ifdef _DEBUG
+					{char myBuf[128];
 extern HFILE spoolFile;
-					wsprintf(myBuf,"CRU get: r12=%04x, %04X: %02x\n",r12,t,cnt);
+					wsprintf(myBuf,"CRU  get: r12=%04x, %02x   sel=%u\n",r12,cnt,KeyboardCol);
 				_lwrite(spoolFile,myBuf,strlen(myBuf));
-				}*/
+				}
+#endif
+
+
 	// kbd:
 //CRU put: r12=0024, 0500: 00 03			// col
 //CRU get: r12=0006, 0005: ff					// rows
 
-	if(Keyboard[0] != 0xff) {
-		return MAKEWORD(0xff,Keyboard[0]);
+	if(!cnt)
+		cnt=16;
+	if(r12>=6 && r12<=0x14) {
+		for(i=1; i<=cnt; i++) {			// cnt = 1..8 qua (direi
+			t >>= 1;
+			t |= 0x80;
+			if(!(Keyboard[r12/2-3 /*6..14hex*/  +i-1] & (1 << (7-KeyboardCol))))
+				t &= ~0x80;
+			}
+		for(i; i<=8; i++) {
+			t >>= 1;
+			t |= 0x80;
+			}
+		return MAKEWORD(0xff,t);
 		}
-	else
-		return 0xffff;
+	else if(r12==0x24) {
+		return MAKEWORD(0xff,KeyboardCol);
+		}
+
+	return 0xff;
+
 
 /*	else if(t >= 0x1300 && t < 0x1400) {		// RS232/Timer (CRU?? https://www.unige.ch/medecine/nouspikel/ti99/cru.htm
 		}
@@ -274,7 +364,10 @@ void _fastcall PutValue(uint16_t t,uint8_t t1) {
 					if(chan & 1) {		// volume (9f bf df ff alla partenza
 						}
 					else {
-						PlayResource(MAKEINTRESOURCE(IDR_WAVE_TONE1),FALSE);
+						if(t1==0x20)		// patch brutale! sarebbe il secondo parametro: bf df ff  80 05 92
+							PlayResource(MAKEINTRESOURCE(IDR_WAVE_TONE1),FALSE);
+						else if(t1==0x05)
+							PlayResource(MAKEINTRESOURCE(IDR_WAVE_TONE2),FALSE);
 						}
 /*
 Generator 	Frequency 	Volume
@@ -286,6 +379,13 @@ Noise 			>En 				>Fv
 Frequency = 111860.8 Hz / xyz
 Volume v:  +1 = -2 dB (>F = off)
 */
+#ifdef _DEBUG
+/*				{char myBuf[128];
+extern HFILE spoolFile;
+					wsprintf(myBuf,"sound write: %02x\n",t1);
+				_lwrite(spoolFile,myBuf,strlen(myBuf));
+				}*/
+#endif
 	        break;
 				}
 				}
@@ -311,11 +411,13 @@ Volume v:  +1 = -2 dB (>F = off)
 					case 0x00:	// VDP write data
 						TMS9918WriteStage=0;
 
+#ifdef _DEBUG
 /*				{char myBuf[128];
 extern HFILE spoolFile;
 					wsprintf(myBuf,"videoRAM write: %04X: %02x; GROM ptr=%04X\n",TMS9918RAMPtr,t1,GROMPtr);
 				_lwrite(spoolFile,myBuf,strlen(myBuf));
 				}*/
+#endif
 						TMSVideoRAM[(TMS9918RAMPtr++) & (TMSVIDEORAM_SIZE-1)]=t1;
 
 						TMS9918Buffer = t1;
@@ -351,10 +453,27 @@ extern HFILE spoolFile;
 				switch(sel) {
 					case 0x00:		// GROM read page 0 (non dovrebbe esistere
 					case 0x20:		// GROM read page 1 (non dovrebbe esistere
-						if(GROMPtr >= GROM_START && GROMPtr < (GROM_START+GROM_SIZE)) {   // 
-							GROMPtr++;
-							// wrap...
-							}
+						{   // 
+						WORD n;
+//						i=GROMBuffer;
+#ifdef GROM_SIZE2
+							if(GROMPtr<0x6000)
+								GROMBuffer = grom_seg[GROMPtr];
+							else if(GROMPtr<0x6000+0x8000)
+								GROMBuffer = grom_seg2[GROMPtr-0x6000];
+							else
+								GROMBuffer = UNIMPLEMENTED_MEMORY_VALUE;
+#else
+							if(GROMPtr<0x6000)
+								GROMBuffer = grom_seg[GROMPtr];
+							else
+								GROMBuffer = UNIMPLEMENTED_MEMORY_VALUE;
+#endif
+						n=GROMPtr & 0xe000;
+						GROMPtr &= ~0xe000;
+						GROMPtr=(GROMPtr+1-GROM_START) & (GROM_SIZE-1);
+						GROMPtr |= n;
+						}
 						GROMWriteStage=0;
 			      break;
 		      case 0x02:		// GROM read address (non dovrebbe esistere
@@ -368,9 +487,14 @@ extern HFILE spoolFile;
 				uint8_t sel=(t & 0x3e);
 				switch(sel) {
 					case 0x00:		// GROM write data (ev. GRAM, dice
-						if(GROMPtr >= GROM_START && GROMPtr < (GROM_START+GROM_SIZE)) {   // 
-							grom_seg[t-GROM_START]=t1;
-							}
+						{   // 
+						WORD n;
+						grom_seg[GROMPtr-GROM_START]=t1;
+						n=GROMPtr & 0xe000;
+						GROMPtr &= ~0xe000;
+						GROMPtr=(GROMPtr+1-GROM_START) & (GROM_SIZE-1);
+						GROMPtr |= n;
+						}
 						GROMWriteStage=0;
 						break;
 					case 0x02:		// GROM set address
@@ -379,8 +503,25 @@ extern HFILE spoolFile;
 							GROMWriteStage = 1;
 							}
 						else {    // https://forums.atariage.com/topic/360111-grom-addressing-for-dummies-please/
+							WORD n;
 							GROMPtr = MAKEWORD(t1,HIBYTE(GROMPtr));
-							GROMBuffer = grom_seg[(GROMPtr++ - GROM_START) & (GROM_SIZE-1)];
+#ifdef GROM_SIZE2
+							if(GROMPtr<0x6000)
+								GROMBuffer = grom_seg[GROMPtr];
+							else if(GROMPtr<0x6000+0x8000)
+								GROMBuffer = grom_seg2[GROMPtr-0x6000];
+							else
+								GROMBuffer = UNIMPLEMENTED_MEMORY_VALUE;
+#else
+							if(GROMPtr<0x6000)
+								GROMBuffer = grom_seg[GROMPtr];
+							else
+								GROMBuffer = UNIMPLEMENTED_MEMORY_VALUE;
+#endif
+							n=GROMPtr & 0xe000;
+							GROMPtr &= ~0xe000;
+							GROMPtr=(GROMPtr+1-GROM_START) & (GROM_SIZE-1);
+							GROMPtr |= n;
 							GROMWriteStage = 0;
 							}
 						break;
@@ -390,8 +531,25 @@ extern HFILE spoolFile;
 							GROMWriteStage = 1;
 							}
 						else {    // https://forums.atariage.com/topic/360111-grom-addressing-for-dummies-please/
+							WORD n;
 							GROMPtr = MAKEWORD(t1,HIBYTE(GROMPtr));
-							GROMBuffer = grom_seg[(GROMPtr++ - GROM_START) & (GROM_SIZE-1)];
+#ifdef GROM_SIZE2
+							if(GROMPtr<0x6000)
+								GROMBuffer = grom_seg[GROMPtr];
+							else if(GROMPtr<0x6000+0x8000)
+								GROMBuffer = grom_seg2[GROMPtr-0x6000];
+							else
+								GROMBuffer = UNIMPLEMENTED_MEMORY_VALUE;
+#else
+							if(GROMPtr<0x6000)
+								GROMBuffer = grom_seg[GROMPtr];
+							else
+								GROMBuffer = UNIMPLEMENTED_MEMORY_VALUE;
+#endif
+							n=GROMPtr & 0xe000;
+							GROMPtr &= ~0xe000;
+							GROMPtr=(GROMPtr+1-GROM_START) & (GROM_SIZE-1);
+							GROMPtr |= n;
 							GROMWriteStage = 0;
 							}
 						break;
@@ -401,11 +559,27 @@ extern HFILE spoolFile;
 							GROMWriteStage = 1;
 							}
 						else {    // https://forums.atariage.com/topic/360111-grom-addressing-for-dummies-please/
+							WORD n;
 							GROMPtr = MAKEWORD(t1,HIBYTE(GROMPtr));
-							GROMBuffer = grom_seg[(GROMPtr++ - GROM_START) & (GROM_SIZE-1)];
+#ifdef GROM_SIZE2
+							if(GROMPtr<0x6000)
+								GROMBuffer = grom_seg[GROMPtr];
+							else if(GROMPtr<0x6000+0x8000)
+								GROMBuffer = grom_seg2[GROMPtr-0x6000];
+							else
+								GROMBuffer = UNIMPLEMENTED_MEMORY_VALUE;
+#else
+							if(GROMPtr<0x6000)
+								GROMBuffer = grom_seg[GROMPtr];
+							else
+								GROMBuffer = UNIMPLEMENTED_MEMORY_VALUE;
+#endif
+							n=GROMPtr & 0xe000;
+							GROMPtr &= ~0xe000;
+							GROMPtr=(GROMPtr+1-GROM_START) & (GROM_SIZE-1);
+							GROMPtr |= n;
 							GROMWriteStage = 0;
 							}
-						GROMWriteStage = 0;
 						break;
 					}
 				}
@@ -415,13 +589,15 @@ extern HFILE spoolFile;
 
 	}
 
-void _fastcall PutValueCRU(uint16_t r12,uint16_t t,uint8_t t1,uint8_t cnt) {
+void _fastcall PutValueCRU(uint16_t r12,uint16_t t,uint8_t cnt) {
 
-					/*{char myBuf[128];
+#ifdef _DEBUG
+					{char myBuf[128];
 extern HFILE spoolFile;
-					wsprintf(myBuf,"CRU put: r12=%04x, %04X: %02x %02x\n",r12,t,t1,cnt);
+					wsprintf(myBuf,"CRU put: r12=%04x, %04x %02x\n",r12,t,cnt);
 				_lwrite(spoolFile,myBuf,strlen(myBuf));
-				}*/
+				}
+#endif
 //	al boot:
 //CRU put: r12=0006, 0000: 00 08			// kbd
 //CRU put: r12=0020, 0000: 00 01			// ?? n.c.
@@ -435,11 +611,11 @@ extern HFILE spoolFile;
 //CRU get: r12=0006, 0005: ff					// rows
 
 
-	t=t+r12;
-	while(cnt--)
-		;
 	if(r12==0x30) {			// audio gate ... no?
 		t=1;
+		}
+	if(r12==0x24) {			// tastiera
+		KeyboardCol=HIBYTE(t);		// cnt=3 per 3 bit, ma ok ignoro
 		}
 /*	else if(t >= 0x1300 && t < 0x1400) {		// RS232/Timer (CRU?? https://www.unige.ch/medecine/nouspikel/ti99/cru.htm
 		}
@@ -508,7 +684,8 @@ extern const unsigned char charset_international[2048],tmsFont[(128-32)*8];
 	GROMWriteStage=0;
 	GROMPtr=0;
 
-	Keyboard[0] = 0xff;
+	memset(Keyboard,0xff,sizeof(Keyboard));
+	KeyboardCol=0;
 
   
 	TMS9919[0]=B8(00000000);

@@ -20,16 +20,11 @@
 
 #define RAM_START 0x8000		// in certi posti pare mirrored tra 8000 e 8400, in altri solo 8300..8400...
 #define RAM_SIZE 256
-//#define RAM_START 0xc000
-//#define RAM_SIZE 16384 ma DEVE partire dal Top!!
-//#define RAM_START 0xf000  // per VELOCIZZAER debug!
-//#define RAM_SIZE 4096 // ma DEVE partire dal Top!!
-//#define RAM_SIZE2 65536
-//#define RAM_START2 0x0000   // in slot 2, v.sotto
 #define ROM_START 0x0000
 #define ROM_SIZE 8192
 #define GROM_START 0x0000
 #define GROM_SIZE (3* 0x2000)    // in effetti 3 da 0x1800.. v. sotto
+//#define GROM_SIZE2 (0x8000)    // TI extended BASIC
 
 
 #define MIN_RASTER 0        // 
@@ -47,24 +42,23 @@ typedef unsigned short int SWORD;
 #pragma pack(1)
 union PIPE {
 	SWORD x;
-	BYTE bb[4];
+//	BYTE bb[4];
 	struct {
 		BYTE l;
 		BYTE h;
-//		BYTE u;		 bah no, sposto la pipe quando ci sono le istruzioni lunghe 4...
 		} b;
 	} Pipe2;
 
-union Z_REG {
+union T_REG {
   SWORD x;
   struct { 
     BYTE l;
     BYTE h;
     } b;
   };
-union Z_REGISTERS {
+union T_REGISTERS {
   BYTE b[32];
-  union Z_REG r[16];
+  union T_REG r[16];
   };
 #define ID_LG 0x8000
 #define ID_AG 0x4000
@@ -188,11 +182,11 @@ int UpdateScreen(HDC,SWORD,SWORD);
 
 WORD _fastcall GetPipe(SWORD);
 BYTE _fastcall GetValue(SWORD);
-SWORD _fastcall GetValueCRU(SWORD,SWORD,BYTE);
+SWORD _fastcall GetValueCRU(SWORD,BYTE);
 SWORD _fastcall GetIntValue(SWORD);
 void _fastcall PutValue(SWORD,BYTE);
 void _fastcall PutIntValue(SWORD,SWORD);
-void _fastcall PutValueCRU(SWORD,SWORD,BYTE,BYTE);
+void _fastcall PutValueCRU(SWORD,SWORD,BYTE);
 int Emulate(int);
 BOOL CenterWindow(HWND, HWND);
 int WritePrivateProfileInt(char *,char *,int,char *);
