@@ -34,6 +34,14 @@ int decodeKBD(int ch, long l, BOOL m) {
 //		Keyboard[j]=255;
 	if(!m) {		// KEYDOWN
   
+
+					{char myBuf[128];
+extern HFILE spoolFile;
+extern BYTE KeyboardCol;
+					wsprintf(myBuf,"premo: %02x\n",ch);
+				_lwrite(spoolFile,myBuf,strlen(myBuf));
+				}
+
 		switch(ch) {
 			case ' ':		//VK_SPACE
 				Keyboard[1]&=~B8(10000000);
@@ -159,12 +167,20 @@ int decodeKBD(int ch, long l, BOOL m) {
 			case VK_HOME:
 				break;
 			case VK_DOWN:
+				Keyboard[4]&=~B8(10000000);
+				Keyboard[7]&=~B8(01000000);
 				break;
 			case VK_RIGHT:
+				Keyboard[4]&=~B8(10000000);
+				Keyboard[5]&=~B8(00100000);
 				break;
 			case VK_UP:
+				Keyboard[4]&=~B8(10000000);
+				Keyboard[6]&=~B8(00100000);
 				break;
 			case VK_LEFT:
+				Keyboard[4]&=~B8(10000000);
+				Keyboard[5]&=~B8(01000000);
 				break;
 			case VK_LSHIFT:
 			case VK_SHIFT:
@@ -189,8 +205,13 @@ int decodeKBD(int ch, long l, BOOL m) {
 				Keyboard[0]&=~B8(10000000);
 				break;
 			case 0xba:		// è
+				Keyboard[4]&=~B8(10000000);
+				Keyboard[6]&=~B8(00010000);			// sarebbe R o F a seconda
 				break;
 			case 0xbb:
+				Keyboard[4]&=~B8(10000000);
+				Keyboard[6]&=~B8(00001000);			// sarebbe T o G a seconda
+				break;
 			case VK_ADD:
 				break;
 			case 0xc0:		// ò@
@@ -214,15 +235,27 @@ int decodeKBD(int ch, long l, BOOL m) {
 			case VK_RETURN:
 				Keyboard[2]&=~B8(10000000);
 				break;
-			case VK_BACK:
+			case VK_BACK:			// FCNT 9
+				Keyboard[4]&=~B8(10000000);
+				Keyboard[3]&=~B8(01000000);
+				break;
+			case VK_DELETE:		// FCNT 1
+				Keyboard[4]&=~B8(10000000);
+				Keyboard[4]&=~B8(00000100);
 				break;
 			case VK_F1:
+				Keyboard[4]&=~B8(10000000);
+				Keyboard[4]&=~B8(00000100);
 				break;
 			case VK_F2:
 				break;
-			case VK_F3:
+			case VK_F3:				// FCNT 3
+				Keyboard[4]&=~B8(10000000);
+				Keyboard[4]&=~B8(00100000);
 				break;
-			case VK_F4:
+			case VK_F4:				// FCNT 4
+				Keyboard[4]&=~B8(10000000);
+				Keyboard[4]&=~B8(00010000);
 				break;
 			case VK_F5:
 				break;
@@ -230,15 +263,27 @@ int decodeKBD(int ch, long l, BOOL m) {
 				break;
 			case VK_F7:
 				break;
-			case VK_F8:
+			case VK_F8:				// FCNT 8
+				Keyboard[4]&=~B8(10000000);
+				Keyboard[3]&=~B8(00100000);
 				break;
 			case 0xdc:		// |\ :)
+				Keyboard[4]&=~B8(10000000);
+				Keyboard[5]&=~B8(00000100);		// sarebbe A opp. Z a seconda del simbolo...
 				break;
-			case VK_ESCAPE:
+			case 0xe2:		// <  :)
+				Keyboard[4]&=~B8(10000000);
+				Keyboard[7]&=~B8(00000100);
+				break;
+			case VK_ESCAPE:		// faccio come CLEAR ossia FCTN 4
+				Keyboard[4]&=~B8(10000000);
+				Keyboard[4]&=~B8(00010000);
+				break;
 			case VK_PAUSE:
 				break;
-			case VK_F12:
-	//			CPUPins |= DoNMI;			// OCCHIO che rientra... sistemare!
+			case VK_F12:			// simulo reset! FCNT =
+				Keyboard[4]&=~B8(10000000);
+				Keyboard[0]&=~B8(10000000);
 				break;
 			}
   
@@ -248,11 +293,6 @@ int decodeKBD(int ch, long l, BOOL m) {
 //    KBDIRQ=1;
   
   
-
-  
-//  if(IRQenable & 0b01000000)        //1=attivi
-//    KBDIRQ=1;
-
 		}
 	else {			// KEYUP
 
@@ -381,12 +421,20 @@ int decodeKBD(int ch, long l, BOOL m) {
 			case VK_HOME:
 				break;
 			case VK_DOWN:
+				Keyboard[4]|=B8(10000000);
+				Keyboard[7]|=B8(01000000);
 				break;
 			case VK_RIGHT:
+				Keyboard[4]|=B8(10000000);
+				Keyboard[5]|=B8(00100000);
 				break;
 			case VK_UP:
+				Keyboard[4]|=B8(10000000);
+				Keyboard[6]|=B8(00100000);
 				break;
 			case VK_LEFT:
+				Keyboard[4]|=B8(10000000);
+				Keyboard[5]|=B8(01000000);
 				break;
 			case VK_LSHIFT:
 			case VK_SHIFT:
@@ -404,6 +452,9 @@ int decodeKBD(int ch, long l, BOOL m) {
 			case VK_MULTIPLY:
 				break;
 			case 0xbb:
+				Keyboard[4]|=B8(10000000);
+				Keyboard[6]|=B8(00001000);			// sarebbe T o G a seconda
+				break;
 			case VK_ADD:
 				break;
 			case VK_SUBTRACT:
@@ -412,7 +463,9 @@ int decodeKBD(int ch, long l, BOOL m) {
 			case VK_DIVIDE:
 				Keyboard[0]|=B8(00000100);
 				break;
-			case 0xba:		// è
+			case 0xba:		// è [{
+				Keyboard[4]|=B8(10000000);
+				Keyboard[6]|=B8(00010000);			// sarebbe R o F a seconda
 				break;
 			case VK_DECIMAL:
 			case 0xbe:		// .
@@ -436,14 +489,26 @@ int decodeKBD(int ch, long l, BOOL m) {
 				Keyboard[2]|=B8(10000000);
 				break;
 			case VK_BACK:
+				Keyboard[4]|=B8(10000000);
+				Keyboard[3]|=B8(01000000);
+				break;
+			case VK_DELETE:
+				Keyboard[4]|=B8(10000000);
+				Keyboard[4]|=B8(00000100);
 				break;
 			case VK_F1:
+				Keyboard[4]|=B8(10000000);
+				Keyboard[4]|=B8(00000100);
 				break;
 			case VK_F2:
 				break;
 			case VK_F3:
+				Keyboard[4]|=B8(10000000);
+				Keyboard[4]|=B8(00100000);
 				break;
 			case VK_F4:
+				Keyboard[4]|=B8(10000000);
+				Keyboard[4]|=B8(00010000);
 				break;
 			case VK_F5:
 				break;
@@ -452,15 +517,26 @@ int decodeKBD(int ch, long l, BOOL m) {
 			case VK_F7:
 				break;
 			case VK_F8:
+				Keyboard[4]|=B8(10000000);
+				Keyboard[3]|=B8(00100000);
 				break;
-			case 0xdc:		// |\ :)
-				Keyboard[7]|=0x2;
+			case 0xdc:		// |
+				Keyboard[4]|=B8(10000000);
+				Keyboard[5]|=B8(00000100);
+				break;
+			case 0xe2:		// <  :)
+				Keyboard[4]|=B8(10000000);
+				Keyboard[7]|=B8(00000100);
 				break;
 			case VK_ESCAPE:
+				Keyboard[4]|=B8(10000000);
+				Keyboard[4]|=B8(00010000);
+				break;
 			case VK_PAUSE:
 				break;
 			case VK_F12:
-//				CPUPins &= ~DoNMI;
+				Keyboard[4]=0xff;		// vabbe' :) v.sopra
+				Keyboard[0]=0xff;
 				break;
 			}
 //	  KBDIRQ=1;  // lo uso solo come semaforo qua!
