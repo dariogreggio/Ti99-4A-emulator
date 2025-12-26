@@ -28,8 +28,8 @@ LANGUAGE LANG_ITALIAN, SUBLANG_ITALIAN
 //
 
 1 VERSIONINFO
- FILEVERSION 1,0,0,2
- PRODUCTVERSION 1,0,0,2
+ FILEVERSION 1,0,0,4
+ PRODUCTVERSION 1,0,0,4
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0xbL
@@ -165,6 +165,8 @@ BEGIN
     BEGIN
         MENUITEM "&Carica memoria...",          ID_FILE_OPEN
         MENUITEM "&Salva memoria...",           ID_FILE_SAVE_AS
+        MENUITEM "Carica memoria video...",     ID_FILE_OPEN2
+        MENUITEM "Salva memoria video...",      ID_FILE_SAVE_AS2
         MENUITEM SEPARATOR
         MENUITEM "Cartrid&ge",                  ID_EMULATORE_CARTRIDGE
         , INACTIVE
@@ -248,7 +250,8 @@ IDB_TI99                BITMAP  DISCARDABLE     "bitmap1.bmp"
 // WAVE
 //
 
-IDR_WAVE_TONE1          WAVE    DISCARDABLE     "ibmbeep.wav"
+IDR_WAVE_TONE1          WAVE    DISCARDABLE     "tone220.wav"
+IDR_WAVE_TONE2          WAVE    DISCARDABLE     "tone1400.wav"
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -257,7 +260,7 @@ IDR_WAVE_TONE1          WAVE    DISCARDABLE     "ibmbeep.wav"
 
 STRINGTABLE DISCARDABLE 
 BEGIN
-    IDS_OPENSTRING1         "NAUTILUS"
+    IDS_OPENSTRING1         "TI994A"
 END
 
 #endif    // Italian (Italy) resources

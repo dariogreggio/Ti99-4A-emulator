@@ -15,6 +15,8 @@
 #include "resource.h"
 
 
+//#define TMS9940 1
+
 #define CPU_CLOCK_DIVIDER 10000L		// 
 #define HW_CLOCK_DIVIDER 20000L		// 
 
@@ -24,7 +26,15 @@
 #define ROM_SIZE 8192
 #define GROM_START 0x0000
 #define GROM_SIZE (3* 0x2000)    // in effetti 3 da 0x1800.. v. sotto
-//#define GROM_SIZE2 (0x8000)    // TI extended BASIC
+
+#define GROM_SIZE2 (0x8000)    // TI extended BASIC
+#define ROM_START2 0x6000
+#define ROM_SIZE2 0x2000
+
+//#define GROM_SIZE2 (0x4000)    // TI star trek
+#define GROM_SIZE2 (0x2000)    // TI Assembler, invaders
+#define ROM_START2 0x6000
+#define ROM_SIZE2 0x2000
 
 
 #define MIN_RASTER 0        // 
@@ -42,7 +52,6 @@ typedef unsigned short int SWORD;
 #pragma pack(1)
 union PIPE {
 	SWORD x;
-//	BYTE bb[4];
 	struct {
 		BYTE l;
 		BYTE h;
@@ -75,22 +84,22 @@ union T_REGISTERS {
 union REGISTRO_F {
   SWORD x;
   struct {
-    unsigned int InterruptMask: 4;
-    unsigned int unused2: 4;
+    unsigned char InterruptMask: 4;
+    unsigned char unused2: 4;
 #ifdef TMS9940 
 //      unsigned int MapFile: 1;   // 
 //      unsigned int Privileged: 1;   // v. anche 990/10?? b7=PR b8=MF
-    unsigned int DigitCarry: 1;   // boh
+    unsigned char DigitCarry: 1;   // boh
 #else
-    unsigned int unused: 1;
+    unsigned char unused: 1;
 #endif
-    unsigned int XOP: 1;
-    unsigned int Parity: 1;   // 0=pari 1=dispari (ODD PARITY)
-    unsigned int Overflow: 1;
-    unsigned int Carry: 1;
-    unsigned int Zero: 1;
-    unsigned int ArithmeticGreater: 1;
-    unsigned int LogicalGreater: 1;
+    unsigned char XOP: 1;
+    unsigned char Parity: 1;   // 0=pari 1=dispari (ODD PARITY)
+    unsigned char Overflow: 1;
+    unsigned char Carry: 1;
+    unsigned char Zero: 1;
+    unsigned char ArithmeticGreater: 1;
+    unsigned char LogicalGreater: 1;
     };
   };
 union OPERAND {
@@ -141,18 +150,21 @@ union RESULT {
 #define TMS_DEFAULT_VRAM_SPRITE_ATTR_ADDRESS   0x0500
 #define TMS_DEFAULT_VRAM_SPRITE_PATT_ADDRESS   0x1000
 extern BYTE TMSVideoRAM[];
-struct SPRITE_ATTR {
+#pragma pack( push, before_structs )
+#pragma pack(1)
+struct SPRITE_ATTR {	// 4 byte
   BYTE ypos,xpos;    // v. sotto, a volte usato come signed
   BYTE name;
   union {
     struct {
-      unsigned int color:4;
-      unsigned int unused:3;
-      unsigned int eclock:1;
+      unsigned char color:4;
+      unsigned char unused:3;
+      unsigned char eclock:1;
       };
     BYTE tag;
     };
   };
+#pragma pack( pop, before_structs )
 
 
 

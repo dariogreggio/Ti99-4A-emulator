@@ -34,14 +34,6 @@ int decodeKBD(int ch, long l, BOOL m) {
 //		Keyboard[j]=255;
 	if(!m) {		// KEYDOWN
   
-
-					{char myBuf[128];
-extern HFILE spoolFile;
-extern BYTE KeyboardCol;
-					wsprintf(myBuf,"premo: %02x\n",ch);
-				_lwrite(spoolFile,myBuf,strlen(myBuf));
-				}
-
 		switch(ch) {
 			case ' ':		//VK_SPACE
 				Keyboard[1]&=~B8(10000000);

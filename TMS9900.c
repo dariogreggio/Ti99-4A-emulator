@@ -1,12 +1,8 @@
-//https://www.google.com/url?sa=t&rct=j&q=&esrc=s&source=web&cd=&ved=2ahUKEwjc3b6Lwar2AhUPTcAKHRVnCmUQFnoECAMQAQ&url=http%3A%2F%2Fgoldencrystal.free.fr%2FM68kOpcodes-v2.3.pdf&usg=AOvVaw3a6qPsk5K_kpQd1MnlD07r
-//https://www.google.com/url?sa=t&rct=j&q=&esrc=s&source=web&cd=&ved=2ahUKEwjc3b6Lwar2AhUPTcAKHRVnCmUQFnoECAUQAQ&url=https%3A%2F%2Fweb.njit.edu%2F~rosensta%2Fclasses%2Farchitecture%2F252software%2Fcode.pdf&usg=AOvVaw0awr9hRKXycE2-kghhbC3Y
 //https://onlinedisassembler.com/odaweb/
 //https://github.com/kstenerud/Musashi/tree/master
 
 //NB  in byte access, the CPU outputs the byte on the lower as well as the upper eight data lines.
 
-//#warning i fattori di AND EOR OR ADD SUB sono TUTTI invertiti! (corretto in ADD SUB)...
-// in effetti credo che tutti questi siano da rivedere, le  IF DIRECTION... sono ridondanti 
 
 #include <windows.h>
 #include <stdio.h>
@@ -22,7 +18,6 @@
 
 
 
-//#define TMS9940 1
 
 int T1;
 HFILE spoolFile;
@@ -32,8 +27,6 @@ HFILE spoolFile;
 BYTE fExit=0;
 SWORD Pipe1;
 extern BOOL debug;
-//BYTE KBDataI,KBDataO,KBControl,/*KBStatus,*/ KBRAM[32];   // https://wiki.osdev.org/%228042%22_PS/2_Controller
-//#define KBStatus KBRAM[0]   // pare...
 SWORD VICRaster;
 extern BYTE ram_seg[];
 
@@ -50,14 +43,18 @@ union PIPE Pipe2;
 
 // da 68000 Makushi o come cazzo si chiama :D
 // res2 è Source e res1 è Dest ossia quindi res3=Result
-#define CARRY_ADD_8() (!!(((res2.b.l & res1.b.l) | (~res3.b.l & (res2.b.l | res1.b.l))) & 0x80))		// ((S & D) | (~R & (S | D)))
-// V. DEC/INC! secondo ti99sim è diverso! o forse è una cazzata... Classic99 è più normale
+//#define CARRY_ADD_8() (!!(((res2.b.l & res1.b.l) | (~res3.b.l & (res2.b.l | res1.b.l))) & 0x80))		// ((S & D) | (~R & (S | D)))
+// V. DEC/INC! 
+#define CARRY_ADD_8() (!!(res3.b.l < res2.b.l))
 #define OVF_ADD_8()  (!!(((res2.b.l ^ res3.b.l) & (res1.b.l ^ res3.b.l)) & 0x80))			// ((S^R) & (D^R))
-#define CARRY_ADD_16() (!!(((res2.x & res1.x) | (~res3.x &	(res2.x | res1.x))) & 0x8000))
+//#define CARRY_ADD_16() (!!(((res2.x & res1.x) | (~res3.x &	(res2.x | res1.x))) & 0x8000))
+#define CARRY_ADD_16() (!!(res3.x < res2.x))
 #define OVF_ADD_16() (!!(((res2.x ^ res3.x) & (res1.x ^ res3.x)) & 0x8000))
-#define CARRY_SUB_8() (!!(((res2.b.l & res3.b.l) | (~res1.b.l & (res2.b.l | res3.b.l))) & 0x80))		// ((S & R) | (~D & (S | R)))
+//#define CARRY_SUB_8() (!!(((res2.b.l & res3.b.l) | (~res1.b.l & (res2.b.l | res3.b.l))) & 0x80))		// ((S & R) | (~D & (S | R)))
+#define CARRY_SUB_8() (!!((res3.b.l<res2.b.l) || (res2.b.l==0)))
 #define OVF_SUB_8()  (!!(((res2.b.l ^ res1.b.l) & (res3.b.l ^ res1.b.l)) & 0x80))			// ((S^D) & (R^D))
-#define CARRY_SUB_16() (!!(((res2.x & res3.x) | (~res1.x &	(res2.x | res3.x))) & 0x8000))
+//#define CARRY_SUB_16() (!!(((res2.x & res3.x) | (~res1.x &	(res2.x | res3.x))) & 0x8000))
+#define CARRY_SUB_16() (!!((res3.x<res2.x) || (res2.x==0)))
 #define OVF_SUB_16() (!!(((res2.x ^ res1.x) & (res3.x ^ res1.x)) & 0x8000))
 
 extern BYTE TMS9918Reg[8],TMS9918RegS;
@@ -91,9 +88,6 @@ int Emulate(int mode) {
   _st.x=0;
   IPL=B8(0001);   // Ti99
   
-  
-//  _pc=0x0935;
-//  _sp=0x8700;
   
 
 	do {
@@ -193,7 +187,7 @@ int Emulate(int mode) {
   			_pc=GetIntValue(0x0004+IPL*2);
         SET_REG(13,i);
         SET_REG(15,_st.x);
-       
+
 				}
 			}
 
@@ -210,15 +204,10 @@ int Emulate(int mode) {
 
 //      LED2^=1;    // ~700nS 7/6/20, ~600 con 32bit 10/7/21
 
-		if(cyclesSoFar<cyclesCPU)		//(ovviamente si pianta nei test timer/DMA... GLABios, PCXTBios va
+		if(cyclesSoFar<cyclesCPU)		//
 			goto rallenta;
 		cyclesCPU += CPUClock;
 
-		/*
-		if((_pc >= 0xa000) && (_pc <= 0xbfff)) {
-			printf("%04x    %02x\n",_pc,GetValue(_pc));
-			}
-			*/
 		if(debug) {
 			char myBuf[256],myBuf2[32];
 			extern WORD GROMPtr;
@@ -243,12 +232,15 @@ int Emulate(int mode) {
 					"%04x %04x %04x %04x %04x %04x %04x %04x-"
 					"%04x %04x %04x %04x %04x %04x %04x %04x "
 					"(%16s)  %04X "
-					"; %04X %02X  %02X %02X %02X\n",_pc,_wp,
+					"; %04X %02X"
+//					"%02X %02X %02X"
+					"\n",_pc,_wp,
 					GET_REG(0),GET_REG(1),GET_REG(2),GET_REG(3),GET_REG(4),GET_REG(5),GET_REG(6),GET_REG(7),
 					GET_REG(8),GET_REG(9),GET_REG(10),GET_REG(11),GET_REG(12),GET_REG(13),GET_REG(14),GET_REG(15),
 					myBuf2, GetPipe(_pc) , 
-					GROMPtr,grom_seg[GROMPtr-GROM_START],
-					ram_seg[0x72],ram_seg[0x73],ram_seg[0xd0]);
+					GROMPtr,grom_seg[GROMPtr-GROM_START]
+					/*,
+					ram_seg[0x72],ram_seg[0x73],ram_seg[0xd0]*/);
 				}
 			else
 				strcpy(myBuf,"RESET\n");
@@ -256,11 +248,11 @@ int Emulate(int mode) {
 
 			{WORD src[16];
 			src[0]=GetPipe(_pc);
-			src[1]=GetPipe(_pc+1);
-			src[2]=GetPipe(_pc+2);
-			src[3]=GetPipe(_pc+3);
-//			Disassemble(src,-1,myBuf,0,_pc,7);
-//			_lwrite(spoolFile,myBuf,strlen(myBuf));
+			src[1]=GetPipe(_pc+2);
+			src[2]=GetPipe(_pc+4);
+			src[3]=GetPipe(_pc+6);
+			Disassemble(src,-1,myBuf,0,_pc,7);
+			_lwrite(spoolFile,myBuf,strlen(myBuf));
 			}
 			}
 		/*if(kbhit()) {
@@ -273,7 +265,7 @@ int Emulate(int mode) {
 			}*/
     
 		{			extern WORD GROMPtr;
-      if(_pc == 0xb5a  /*_pc == 0xb24 && */ /*_pc == 0xc0c*/ /* && GROMPtr==0x1d7*/) {
+      if(_pc == 0x610  /*_pc == 0xb24 && */ /*_pc == 0xc0c*/ /* && GROMPtr==0x1d7*/) {
 				int T;
         T=0;
         }
@@ -288,21 +280,22 @@ execute:
 		switch(Pipe1 & B16(11110000,00000000)) {
       case B8(0000) << 12:
     		if(Pipe1 & B16(00001000,00000000)) {    // SLA SRA SRC SRL
-          if(!(Pipe1 & B16(00000000,11110000))) { // count
-            res2.b.l=GET_REG(0) >> 12;
-            if(!res2.b.l)
-              res2.b.l=16;
-            }
-          else {
+          if(!(Pipe1 & B16(00000000,11110000)))  // count
+            res2.b.l=GET_REG(0) & 0xf;
+          else
             res2.b.l=(uint8_t)(Pipe1 & B16(00000000,11110000)) >> 4;
-            }
+          if(!res2.b.l)
+            res2.b.l=16;
           res1.x=GET_WORKING_REG();
         
           switch(Pipe1 & B16(11111111,00000000)) {
             case B8(00001010) << 8:     // SLA Shift left arithmetic
+              res3.x=res1.x;
               while(res2.b.l--) {
                 _st.Carry= res1.x & 0x8000 ? 1 : 0;
                 res1.x <<= 1;
+                if((res1.x & 0x8000) != (res3.x & 0x8000))
+									_st.Overflow=1;
                 res3.x=res1.x;
                 }
               
@@ -321,6 +314,7 @@ aggRotate:
               goto aggRotate;
               break;
             case B8(00001011) << 8:     // SRC Shift right circular
+              res3.x=res1.x;
               while(res2.b.l--) {
                 _st.Carry=res3.x & 1;
                 res1.x >>= 1;
@@ -342,15 +336,13 @@ aggRotate:
           }		// SLA ecc
         else {
           switch(Pipe1 & B16(11111111,11000000)) {
-            case B8(0000001000) << 6:     // AI CI LI 
+            case B8(0000001000) << 6:     // AI LI 
               switch(Pipe1 & B16(11111111,11100000)) {
                 case B8(00000010001) << 5:     // AI Add immediate
-                  res1.x=GET_WORKING_REG();
-                  res2.x=Pipe2.x;
+                  res2.x=GET_WORKING_REG();
+                  res1.x=Pipe2.x;
                   res3.x=res1.x+res2.x;
-                  
                   SET_WORKING_REG(res3.x);
-
 									_pc+=2;
                   
 aggFlag16A:
@@ -359,8 +351,8 @@ aggFlag16A:
 									goto aggFlag16Z;
                   break;
                 case B8(00000010000) << 5:     // LI Load immediate
-									SET_WORKING_REG(Pipe2.x);
-                  res3.x=GET_WORKING_REG();
+                  res3.x=Pipe2.x;
+									SET_WORKING_REG(res3.x);
 									_pc+=2;
                   goto aggFlag16Z;
                   break;
@@ -403,12 +395,9 @@ aggFlag16Z:
                   break;
                 case REGISTER_SYMBOLIC_INDEXED:
                   if(workingRegIndex)
-//                    res3.x=GetIntValue(WORKING_REG+(int16_t)Pipe2.x);
                     res3.x=GET_WORKING_REG()+(int16_t)Pipe2.x;
                   else
-//                    res3.x=GetIntValue(Pipe2.x);
                     res3.x=Pipe2.x;
-//                  _pc+=2;
                   break;
                 case REGISTER_INDIRECT_AUTOINCREMENT:
                   res3.x=GetIntValue(GET_WORKING_REG());// BOH...
@@ -423,16 +412,12 @@ aggFlag16Z:
                   res3.x=GET_WORKING_REG();
                   break;
                 case REGISTER_INDIRECT:
-//                  res3.x=GetIntValue(WORKING_REG);
-// BOH no... b. sopra
                   res3.x=GET_WORKING_REG();
                   break;
                 case REGISTER_SYMBOLIC_INDEXED:
                   if(workingRegIndex)
-//                    res3.x=GetIntValue(WORKING_REG+(int16_t)Pipe2.x);
                     res3.x=GET_WORKING_REG()+(int16_t)Pipe2.x;
                   else
-//                    res3.x=GetIntValue(Pipe2.x);
                     res3.x=Pipe2.x;
                   _pc+=2;
                   break;
@@ -450,8 +435,6 @@ aggFlag16Z:
                   res3.x=GET_WORKING_REG();
                   break;
                 case REGISTER_INDIRECT:
-//                  res3.x=GetIntValue(WORKING_REG);
-// BOH no... b. sopra
                   res3.x=GET_WORKING_REG();
                   break;
                 case REGISTER_SYMBOLIC_INDEXED:
@@ -571,6 +554,8 @@ store16_2:
                 }
               res1.x=0;
               res3.x=res1.x-res2.x;
+							_st.Carry=CARRY_SUB_16();
+			        _st.Overflow = OVF_SUB_16();
               goto store16_2;
               break;
             case B8(0000011101) << 6:     // ABS Absolute Value
@@ -642,12 +627,10 @@ store16_2:
                   break;
                 }
               res3.x=res1.x+1;
-              
-aggInc:
-//					  _st.Overflow= (x3==0x8000) ? 1 : 0;
-              _st.Overflow= !!(!(res1.x & 0x8000) && (res3.x & 0x8000));
 //              _st.Carry= res3.x & 0x10 ? 1 : 0;		// v. ti99sim
               _st.Carry= res3.x < 1 ? 1 : 0;		// v. classic99
+//					  _st.Overflow= (x3==0x8000) ? 1 : 0;
+              _st.Overflow= !!(!(res1.x & 0x8000) && (res3.x & 0x8000));
               goto store16_2;
               break;
             case B8(0000010111) << 6:     // INCT Increment by Two
@@ -694,9 +677,7 @@ aggInc:
                   SET_WORKING_REG(GET_WORKING_REG()+2);
                   break;
                 }
-              res3.x=res1.x;
-              res3.x--;
-aggDec:
+              res3.x=res1.x-1;
 //              _st.Carry= res3.x & 0x10 ? 0 : 1;		// v. ti99sim
               _st.Carry= res3.x != 0xffff ? 1 : 0;		// v. classic99
               _st.Overflow= !!((res1.x & 0x8000) && !(res3.x & 0x8000));
@@ -721,8 +702,7 @@ aggDec:
                   SET_WORKING_REG(GET_WORKING_REG()+2);
                   break;
                 }
-              res3.x=res1.x;
-              res3.x-=2;
+              res3.x=res1.x-2;
 //              _st.Carry= res3.x & 0x10 ? 0 : 1;		// v. ti99sim
               _st.Carry= res3.x < 0xfffe ? 1 : 0;		// v. classic99
               _st.Overflow= !!((res1.x & 0x8000) && !(res3.x & 0x8000));
@@ -767,7 +747,7 @@ aggDec:
             case B8(0000001100) << 6:     // LWPI LIMI
               switch(Pipe1 & B16(11111111,11100000)) {
                 case B8(00000011000) << 5:     // LIMI Load interrupt mask
-                  _st.x=(_st.x & ~ID_INTERRUPTMASK) | (Pipe2.x & B8(0000000000001111));
+                  _st.InterruptMask=Pipe2.x & B8(00001111);
                   _pc+=2;
                   break;
                 }
@@ -780,13 +760,12 @@ aggDec:
                 case B8(00000010100) << 5:     // CI Compare immediate
                   res1.x=GET_WORKING_REG();
                   res2.x=Pipe2.x;
-                  res3.x=(uint16_t)res1.x-(uint16_t)res2.x;
 									_pc+=2;
         
 compare16:
                   _st.LogicalGreater=res1.x>res2.x ? 1 : 0;
                   _st.ArithmeticGreater=((int16_t)res1.x)>((int16_t)res2.x) ? 1 : 0;
-                  _st.Zero=res3.x ? 0 : 1;
+                  _st.Zero=res1.x==res2.x ? 1 : 0;
                   break;
                 }
               break;
@@ -807,7 +786,7 @@ compare16:
           			  CPUPins |= DoIdle;
                   break;
                 case B8(00000011011) << 5:     // RSET
-                  _st.x &= B16(11111111,11110000);
+                  _st.InterruptMask = 0;
                   break;
                 }
               break;
@@ -827,58 +806,75 @@ compare16:
         break;
       
       case B8(0001) << 12:
-    		switch(Pipe1 & B16(11111111,00000000)) {
-          case B8(00010011) << 8:     // JEQ Jump equal
-            if(_st.Zero)
-              goto Jump;
-            break;
-          case B8(00010101) << 8:     // JGT Jump greater than
-            if(_st.ArithmeticGreater)
-              goto Jump;
-            break;
-          case B8(00011011) << 8:     // JH Jump high
+    		switch(Pipe1 & B16(1111,00000000)) {
+          case B8(1011) << 8:     // JH Jump high
             if(_st.LogicalGreater && !_st.Zero)
               goto Jump;
             break;
-          case B8(00010100) << 8:     // JHE Jump high or equal
-            if(_st.LogicalGreater || _st.Zero)
-              goto Jump;
-            break;
-          case B8(00011010) << 8:     // JL Jump low
+          case B8(1010) << 8:     // JL Jump low
             if(!_st.LogicalGreater && !_st.Zero)
               goto Jump;
             break;
-          case B8(00010010) << 8:     // JLE Jump low or equal
+          case B8(0100) << 8:     // JHE Jump high or equal
+            if(_st.LogicalGreater || _st.Zero)
+              goto Jump;
+            break;
+          case B8(0010) << 8:     // JLE Jump low or equal
             if(!_st.LogicalGreater || _st.Zero)
               goto Jump;
             break;
-          case B8(00010001) << 8:     // JLT Jump less than
+          case B8(0101) << 8:     // JGT Jump greater than
+            if(_st.ArithmeticGreater)
+              goto Jump;
+            break;
+          case B8(0001) << 8:     // JLT Jump less than
             if(!_st.ArithmeticGreater && !_st.Zero)
               goto Jump;
             break;
-          case B8(00010000) << 8:     // JMP Jump unconditional  (se 0x1000 vale come NOP !
-Jump:
-    				_pc += (int8_t)LOBYTE(Pipe1) *2;
-            break;
-          case B8(00010111) << 8:     // JNC Jump no carry
-            if(!_st.Carry)
+          case B8(0011) << 8:     // JEQ Jump equal
+            if(_st.Zero)
               goto Jump;
             break;
-          case B8(00010110) << 8:     // JNE Jump not equal
+          case B8(0110) << 8:     // JNE Jump not equal
             if(!_st.Zero)
               goto Jump;
             break;
-          case B8(00011001) << 8:     // JNO Jump no overflow
-            if(!_st.Overflow)
-              goto Jump;
-            break;
-          case B8(00011000) << 8:     // JOC Jump carry
+          case B8(1000) << 8:     // JOC Jump carry
             if(_st.Carry)
               goto Jump;
             break;
-          case B8(00011100) << 8:     // JOP Jump odd parity
+          case B8(0111) << 8:     // JNC Jump no carry
+            if(!_st.Carry)
+              goto Jump;
+            break;
+          case B8(1001) << 8:     // JNO Jump no overflow
+            if(!_st.Overflow)
+              goto Jump;
+            break;
+          case B8(1100) << 8:     // JOP Jump odd parity
             if(_st.Parity)
               goto Jump;
+            break;
+          case B8(0000) << 8:     // JMP Jump unconditional  (se 0x1000 vale come NOP !
+Jump:
+    				_pc += (int8_t)LOBYTE(Pipe1) *2;
+            break;
+
+               // SBO SBZ TB (CRU operations)
+          case B8(1101) << 8:     // SBO Set bit to one
+		        res3.x=GetValueCRU(GET_REG(12)+LOBYTE(Pipe1)/8,1);
+		        PutValueCRU(GET_REG(12)+LOBYTE(Pipe1)/8,res3.x,1);
+            break;
+          case B8(1110) << 8:     // SBZ Set bit to zero
+		        res3.x=GetValueCRU(GET_REG(12)+LOBYTE(Pipe1)/8,1);
+		        PutValueCRU(GET_REG(12)+LOBYTE(Pipe1)/8,res3.x,1);
+            break;
+          case B8(1111) << 8:     // TB Test bit 
+		        res3.x=GetValueCRU(GET_REG(12)+LOBYTE(Pipe1)/8,1);
+						if(res3.x)
+							_st.Zero=1;			// occhio invertito
+						else
+							_st.Zero=0;
             break;
           }
         break;
@@ -922,9 +918,8 @@ Jump:
 //            SET_WORKING_REG2(GET_WORKING_REG2()+2);
             break;
           }
-        res3.x=(uint16_t)res1.x+(uint16_t)res2.x;
+        res3.x=res1.x+res2.x;
         
-store16:
         switch(workingTD) {
           case REGISTER_DIRECT:
             SET_WORKING_REG2(res3.x);
@@ -990,10 +985,8 @@ store16:
 //        _st.Overflow = !!(((res1.b.l & 0x40) + (res2.b.l & 0x40)) & 0x80) != !!(((res1.x & 0x80) + (res2.x & 0x80)) & 0x100);
 //        _st.Overflow = !!(((res1.b.h & 0x80) == (res2.b.h & 0x80)) && ((res3.b.h & 0x80) != (res2.b.h & 0x80)));
         _st.Overflow = OVF_ADD_8();
-          
-store8:
         _st.Carry=CARRY_ADD_8();
-        
+
 store8_012:
         switch(workingTD) {
           case REGISTER_DIRECT:
@@ -1014,7 +1007,8 @@ store8_012:
             SET_WORKING_REG2(GET_WORKING_REG2()+1);
             break;
           }
-        
+      
+aggFlag8Z:
         _st.LogicalGreater=res3.b.l>0 ? 1 : 0;
         _st.ArithmeticGreater=((int8_t)res3.b.l)>((int8_t)0) ? 1 : 0;
         _st.Zero=res3.b.l ? 0 : 1;
@@ -1028,7 +1022,7 @@ calcParity:
         par ^= res3.b.l;
         res3.b.l= par >> 4;
         par ^= res3.b.l;
-        _st.Parity=par & 1 ? 0 : 1;   // ODD
+        _st.Parity=par & 1 ? 1 : 0;   // ODD
         }
         break;
 
@@ -1072,8 +1066,6 @@ calcParity:
             SET_WORKING_REG2(GET_WORKING_REG2()+2);
             break;
           }
-        res3.x=(uint16_t)res1.x-(uint16_t)res2.x;
-        
         goto compare16;
         break;
       case B8(1001) << 12:    // CB Compare bytes
@@ -1116,12 +1108,12 @@ calcParity:
             SET_WORKING_REG2(GET_WORKING_REG2()+1);
             break;
           }
-        res3.b.l=(uint16_t)res1.b.l-(uint16_t)res2.b.l;
 
-compare8:        
+				res3.b.l=res1.b.l;
         _st.LogicalGreater=res1.b.l>res2.b.l ? 1 : 0;
         _st.ArithmeticGreater=((int8_t)res1.b.l)>((int8_t)res2.b.l) ? 1 : 0;
-        _st.Zero=res3.b.l ? 0 : 1;
+        _st.Zero=res1.b.l == res2.b.l ? 1 : 0;
+				goto calcParity;
         break;
 
       case B8(0110) << 12:    // S Subtract
@@ -1165,12 +1157,30 @@ compare8:
           }
         res3.x=res1.x-res2.x;
         
-aggFlag16S:
         _st.Carry=CARRY_SUB_16();
 //        _st.Overflow = !!(((res1.x & 0x4000) + (res2.x & 0x4000)) & 0x8000) != !!(((res1.d & 0x8000) + (res2.d & 0x8000)) & 0x10000);
 //        _st.Overflow = !!(((res1.x & 0x8000) != (res2.x & 0x8000)) && ((res3.x & 0x8000) != (res2.x & 0x8000)));
         _st.Overflow = OVF_SUB_16();
-        goto store16;
+        switch(workingTD) {
+          case REGISTER_DIRECT:
+            SET_WORKING_REG2(res3.x);
+            break;
+          case REGISTER_INDIRECT:
+            PutIntValue(GET_WORKING_REG2(),res3.x);
+            break;
+          case REGISTER_SYMBOLIC_INDEXED:
+            if(workingReg2Index)
+              PutIntValue(GET_WORKING_REG2()+(int16_t)Pipe2.x,res3.x);
+            else
+              PutIntValue(Pipe2.x,res3.x);
+            _pc+=2;
+            break;
+          case REGISTER_INDIRECT_AUTOINCREMENT:
+            PutIntValue(GET_WORKING_REG2(),res3.x);
+            SET_WORKING_REG2(GET_WORKING_REG2()+2);
+            break;
+          }
+        goto aggFlag16Z;
         break;
       case B8(0111) << 12:    // SB Subtract bytes  OPERANDI INVERTITI ;) anche in Add, mentre Compare è dritta!
         switch(workingTS) {
@@ -1215,7 +1225,7 @@ aggFlag16S:
         _st.Carry=CARRY_SUB_8();
 //        _st.Overflow = !!(((res1.b.h & 0x80) != (res2.b.h & 0x80)) && ((res3.b.h & 0x80) != (res2.b.h & 0x80)));
         _st.Overflow = OVF_SUB_8();
-        goto store8;
+        goto store8_012;
         break;
       
       case B8(1110) << 12:    // SOC Set ones corresponding
@@ -1321,7 +1331,6 @@ store16_012:
             break;
           }
         res3.b.l=res2.b.l | res1.b.l;
-        
         goto store8_012;
         break;
       
@@ -1365,10 +1374,9 @@ store16_012:
             break;
           }
         res3.x=res2.x & ~res1.x;
-       
         goto store16_012;
         break;
-      case B8(0101) << 12:    // SZCB Set zeros corresponding bytes  
+      case B8(0101) << 12:    // SZCB Set zeros corresponding byte
         switch(workingTS) {
           case REGISTER_DIRECT:
             res1.b.l=HIBYTE(GET_WORKING_REG());
@@ -1460,7 +1468,6 @@ store16_012:
         goto store8_012;
         break;
       
-      
       case B8(0010) << 12:    // Compare Ones, Compare Zeros, Exclusive OR
         switch(workingTS) {
           case REGISTER_DIRECT:
@@ -1474,7 +1481,6 @@ store16_012:
               res1.x=GetIntValue(GET_WORKING_REG()+(int16_t)Pipe2.x);
             else
               res1.x=GetIntValue(Pipe2.x);
-//            GetPipe(_pc);
             _pc+=2;
             break;
           case REGISTER_INDIRECT_AUTOINCREMENT:
@@ -1490,7 +1496,7 @@ store16_012:
               _st.Zero=0;
             break;
           case B8(001001) << 10:     // CZC Compare Zeros corresponding
-            if((res1.x & ~GET_WORKING_REG2()) == res1.x)
+            if((res1.x & GET_WORKING_REG2()) == 0 /*res1.x*/)
               _st.Zero=1;
 						else
               _st.Zero=0;
@@ -1508,14 +1514,14 @@ store16_012:
                 res3.b.l=res1.b.l;
                 i=_st.Carry;
                 _st.Carry=0;
-                if((_res1.b.l & 0xf) > 9 || _st.DigitCarry) {
+                if((res1.b.l & 0xf) > 9 || _st.DigitCarry) {
                   res3.x+=6;
                   res1.b.l=res3.b.l;
                   _st.Carry= i || res3.b.h;
                   _st.DigitCarry=1;
                   }
                 else
-                  _f.HalfCarry=0;
+                  _st.DigitCarry=0;
                 if((res1.b.l>0x99) || i) {
                   res3.b.l+=0x60;  
                   _st.Carry=1;
@@ -1524,7 +1530,7 @@ store16_012:
                   _st.Carry=0;
                 switch(workingTD) {
                   case REGISTER_DIRECT:
-                    WORKING_REG2=MAKEWORD(res3.b.l,HIBYTE(GET_WORKING_REG2()));
+                    SET_WORKING_REG2(MAKEWORD(res3.b.l,HIBYTE(GET_WORKING_REG2())));
 
 
                     break;
@@ -1553,14 +1559,14 @@ store_dca:
                 res3.b.l=res1.b.l;
                 i=_st.Carry;
                 _st.Carry=0;
-                if((_res1.b.l & 0xf) > 9 || _st.DigitCarry) {
+                if((res1.b.l & 0xf) > 9 || _st.DigitCarry) {
                   res3.x+=6;
                   res1.b.l=res3.b.l;
                   _st.Carry= i || res3.b.h;
                   _st.DigitCarry=1;
                   }
                 else
-                  _f.HalfCarry=0;
+                  _st.DigitCarry=0;
                 if((res1.b.l>0x99) || i) {
                   res3.b.l+=0x60;  
                   _st.Carry=1;
@@ -1570,7 +1576,7 @@ store_dca:
                 goto store_dca;
                 break;
               case B8(0010) << 6:   // LIIM
-                _st.x=(_st.x & B16(11111111,11111100)) | (Pipe2.x & B16(00000000,00000011));
+                _st.InterruptMask=(_st.InterruptMask & B8(11111100)) | (Pipe2.x & B8(00000011));
                 break;
               default:   // XOP
                 i=_wp;
@@ -1667,35 +1673,43 @@ store_dca:
           case B8(001100) << 10:     // LDCR Load communication register
 						{uint8_t cnt=WORKING_REG2_INDEX;
             PutValueCRU(GET_REG(12),res1.x,cnt);
-//						goto store16_2;
-						// o flag solo??
+						res3.x=res1.x;
+						if(cnt>8)
+							goto aggFlag16Z;
+						else
+							goto aggFlag8Z;
 						}
             break;
           case B8(001101) << 10:     // STCR Store communication register
 						{uint8_t cnt=WORKING_REG2_INDEX;
             res3.x=GetValueCRU(GET_REG(12),cnt);
-						goto store16_2;
+						if(cnt>8) {
+							goto store16_2;
+							}
+						else {
+							res3.b.l=res3.b.h;
+							switch(workingTS) {
+								case REGISTER_DIRECT:
+									SET_WORKING_REG(MAKEWORD(LOBYTE(GET_WORKING_REG()),res3.b.l));		// se registro, va in MSB
+									break;
+								case REGISTER_INDIRECT:
+									PutValue(GET_WORKING_REG(),res3.b.l);			// v. di là, big-endian circa
+									break;
+								case REGISTER_SYMBOLIC_INDEXED:
+									if(workingRegIndex)
+										PutValue(GET_WORKING_REG()+(int16_t)Pipe2.x,res3.b.l);
+									else
+										PutValue(Pipe2.x,res3.b.l);
+									_pc+=2;
+									break;
+								case REGISTER_INDIRECT_AUTOINCREMENT:
+									PutValue(GET_WORKING_REG(),res3.b.l);
+									SET_WORKING_REG(GET_WORKING_REG()+1);
+									break;
+								}
+							goto aggFlag8Z;
+							}
 						}
-            break;
-            
-          case B8(000111) << 10:     // SBO SBZ TB (CRU operations)
-        		switch(Pipe1 & B16(11111111,00000000)) {    // https://www.unige.ch/medecine/nouspikel/ti99/cru.htm
-              case B8(00111101) << 8:     // SBO Set bit to one
-		            res3.x=GetValueCRU(GET_REG(12),1);
-		            PutValueCRU(GET_REG(12),res3.x,1);
-                break;
-              case B8(00111110) << 8:     // SBZ Set bit to zero
-		            res3.x=GetValueCRU(GET_REG(12),1);
-		            PutValueCRU(GET_REG(12),res3.x,1);
-                break;
-              case B8(00111111) << 8:     // TB Test bit 
-		            res3.x=GetValueCRU(GET_REG(12),1);
-								if(res3.x)
-									_st.Zero=1;			// occhio invertito
-								else
-									_st.Zero=0;
-                break;
-              }
             break;
           }
         break;

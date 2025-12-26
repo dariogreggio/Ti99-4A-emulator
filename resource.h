@@ -30,6 +30,7 @@
 #define IDR_BINARY_MACPLUSROM128        230
 #define IDR_BINARY_APPLEDISK800         231
 #define IDR_BINARY_JMROM                232
+#define IDR_WAVE_TONE2                  232
 #define IDR_WAVE_TONE1                  252
 #define IDR_WAVE_BEEP                   281
 #define ID_CANCEL                       1001
@@ -56,14 +57,15 @@
 #define ID_OPZIONI_VELOCIT_LENTO        40014
 #define ID_OPZIONI_VELOCIT_NORMALE      40015
 #define ID_OPZIONI_VELOCIT_VELOCE       40016
-#define ID_OPZIONI_VELOCIT_CONTROLLOTURBO 40031
+#define ID_FILE_SAVE_AS2                40017
+#define ID_FILE_OPEN2                   40018
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        231
-#define _APS_NEXT_COMMAND_VALUE         40014
+#define _APS_NEXT_RESOURCE_VALUE        233
+#define _APS_NEXT_COMMAND_VALUE         40019
 #define _APS_NEXT_CONTROL_VALUE         1026
 #define _APS_NEXT_SYMED_VALUE           104
 #endif

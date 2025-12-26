@@ -15,7 +15,7 @@
 #define UNIMPLEMENTED_MEMORY_VALUE 0xFF
 
 
-BYTE rom_seg[ROM_SIZE],rom_seg2[1024];
+BYTE rom_seg[ROM_SIZE];
 
 
 
@@ -30,6 +30,7 @@ BYTE rom_seg2[ROM_SIZE2];
 BYTE grom_seg[GROM_SIZE];		// 3x	
 #ifdef GROM_SIZE2
 BYTE grom_seg2[GROM_SIZE2];
+BYTE rom_seg2[ROM_SIZE2];
 #endif
 WORD GROMPtr;
 BYTE GROMWriteStage,GROMBuffer;
@@ -53,9 +54,17 @@ extern union PIPE Pipe2;
 uint8_t _fastcall GetValue(uint16_t t) {
 	register uint8_t i;
 
+#ifdef ROM_SIZE2
+	if(t >= ROM_START2 && t < (ROM_START2+ROM_SIZE2)) 
+		i=rom_seg2[t-ROM_START2];
+	else if(t < ROM_SIZE) {			//
+		i=rom_seg[t];
+		}
+#else
 	if(t < ROM_SIZE) {			//
 		i=rom_seg[t];
 		}
+#endif
 	else if(t >= RAM_START && t < (RAM_START+RAM_SIZE*4)) {   // 256, mirrored (?)
 		uint16_t t2;
 		t2 = (t-RAM_START) & 0xff /* 0xfe*/;
@@ -112,7 +121,7 @@ uint8_t _fastcall GetValue(uint16_t t) {
 #ifdef GROM_SIZE2
 							if(GROMPtr<0x6000)
 								GROMBuffer = grom_seg[GROMPtr];
-							else if(GROMPtr<0x6000+0x8000)
+							else if(GROMPtr<0x6000+GROM_SIZE2)
 								GROMBuffer = grom_seg2[GROMPtr-0x6000];
 							else
 								GROMBuffer = UNIMPLEMENTED_MEMORY_VALUE;
@@ -154,7 +163,7 @@ uint8_t _fastcall GetValue(uint16_t t) {
 #ifdef GROM_SIZE2
 							if(GROMPtr<0x6000)
 								GROMBuffer = grom_seg[GROMPtr];
-							else if(GROMPtr<0x6000+0x8000)
+							else if(GROMPtr<0x6000+GROM_SIZE2)
 								GROMBuffer = grom_seg2[GROMPtr-0x6000];
 							else
 								GROMBuffer = UNIMPLEMENTED_MEMORY_VALUE;
@@ -183,7 +192,7 @@ uint8_t _fastcall GetValue(uint16_t t) {
 #ifdef GROM_SIZE2
 							if(GROMPtr<0x6000)
 								GROMBuffer = grom_seg[GROMPtr];
-							else if(GROMPtr<0x6000+0x8000)
+							else if(GROMPtr<0x6000+GROM_SIZE2)
 								GROMBuffer = grom_seg2[GROMPtr-0x6000];
 							else
 								GROMBuffer = UNIMPLEMENTED_MEMORY_VALUE;
@@ -219,7 +228,7 @@ uint8_t _fastcall GetValue(uint16_t t) {
 #ifdef GROM_SIZE2
 							if(GROMPtr<0x6000)
 								GROMBuffer = grom_seg[GROMPtr];
-							else if(GROMPtr<0x6000+0x8000)
+							else if(GROMPtr<0x6000+GROM_SIZE2)
 								GROMBuffer = grom_seg2[GROMPtr-0x6000];
 							else
 								GROMBuffer = UNIMPLEMENTED_MEMORY_VALUE;
@@ -251,12 +260,23 @@ uint8_t _fastcall GetValue(uint16_t t) {
 
 uint16_t _fastcall GetIntValue(uint16_t t) {
 	register uint16_t i;
-	uint16_t t2=t;
 
+#ifdef ROM_SIZE2
+	if(t >= ROM_START2 && t < (ROM_START2+ROM_SIZE2)) {
+    t &= 0xfffe;
+		t -= ROM_START2;
+		i=MAKEWORD(rom_seg2[t+1],rom_seg2[t]);		// big-endian
+		}
+	else 	if(t < ROM_SIZE) {			//
+    t &= 0xfffe;
+		i=MAKEWORD(rom_seg[t+1],rom_seg[t]);		// big-endian
+		}
+#else
 	if(t < ROM_SIZE) {			//
     t &= 0xfffe;
 		i=MAKEWORD(rom_seg[t+1],rom_seg[t]);		// big-endian
 		}
+#endif
 	else if(t >= RAM_START && t < (RAM_START+RAM_SIZE*4)) {   // 256 bytes, mirrored (?)
 		t-=RAM_START;
 
@@ -278,11 +298,11 @@ uint16_t _fastcall GetValueCRU(uint16_t r12,uint8_t cnt) {
 	uint8_t i,t;
 
 #ifdef _DEBUG
-					{char myBuf[128];
+/*					{char myBuf[128];
 extern HFILE spoolFile;
 					wsprintf(myBuf,"CRU  get: r12=%04x, %02x   sel=%u\n",r12,cnt,KeyboardCol);
 				_lwrite(spoolFile,myBuf,strlen(myBuf));
-				}
+				}*/
 #endif
 
 
@@ -296,6 +316,7 @@ extern HFILE spoolFile;
 		for(i=1; i<=cnt; i++) {			// cnt = 1..8 qua (direi
 			t >>= 1;
 			t |= 0x80;
+
 			if(!(Keyboard[r12/2-3 /*6..14hex*/  +i-1] & (1 << (7-KeyboardCol))))
 				t &= ~0x80;
 			}
@@ -307,6 +328,9 @@ extern HFILE spoolFile;
 		}
 	else if(r12==0x24) {
 		return MAKEWORD(0xff,KeyboardCol);
+		}
+	else if(r12==0x00) {		// ?? vertical sync dice, in IRQ, e cnt=2
+		return 0x00;
 		}
 
 	return 0xff;
@@ -320,11 +344,25 @@ extern HFILE spoolFile;
 
 uint16_t _fastcall GetPipe(uint16_t t) {
 
+#ifdef ROM_SIZE2
+	if(t >= ROM_START2 && t < (ROM_START2+ROM_SIZE2)) {
+    t &= 0xfffe;
+		t -= ROM_START2;
+	  Pipe1=MAKEWORD(rom_seg2[t+1],rom_seg2[t]);
+		Pipe2.x=MAKEWORD(rom_seg2[t+3],rom_seg2[t+2]);
+		}
+	else if(t < ROM_SIZE) {			//
+		t &= 0xfffe;
+	  Pipe1=MAKEWORD(rom_seg[t+1],rom_seg[t]);
+		Pipe2.x=MAKEWORD(rom_seg[t+3],rom_seg[t+2]);
+		}
+#else
 	if(t < ROM_SIZE) {			//
 		t &= 0xfffe;
 	  Pipe1=MAKEWORD(rom_seg[t+1],rom_seg[t]);
 		Pipe2.x=MAKEWORD(rom_seg[t+3],rom_seg[t+2]);
 		}
+#endif
 	else if(t >= RAM_START && t < (RAM_START+RAM_SIZE*4)) {   // 256, mirrored (?) NON SONO SICURO QUA ABBIA SENSO!
 		t-=RAM_START;
 		t &= 0xfe /*0xfe*/;
@@ -459,7 +497,7 @@ extern HFILE spoolFile;
 #ifdef GROM_SIZE2
 							if(GROMPtr<0x6000)
 								GROMBuffer = grom_seg[GROMPtr];
-							else if(GROMPtr<0x6000+0x8000)
+							else if(GROMPtr<0x6000+GROM_SIZE2)
 								GROMBuffer = grom_seg2[GROMPtr-0x6000];
 							else
 								GROMBuffer = UNIMPLEMENTED_MEMORY_VALUE;
@@ -508,7 +546,7 @@ extern HFILE spoolFile;
 #ifdef GROM_SIZE2
 							if(GROMPtr<0x6000)
 								GROMBuffer = grom_seg[GROMPtr];
-							else if(GROMPtr<0x6000+0x8000)
+							else if(GROMPtr<0x6000+GROM_SIZE2)
 								GROMBuffer = grom_seg2[GROMPtr-0x6000];
 							else
 								GROMBuffer = UNIMPLEMENTED_MEMORY_VALUE;
@@ -536,7 +574,7 @@ extern HFILE spoolFile;
 #ifdef GROM_SIZE2
 							if(GROMPtr<0x6000)
 								GROMBuffer = grom_seg[GROMPtr];
-							else if(GROMPtr<0x6000+0x8000)
+							else if(GROMPtr<0x6000+GROM_SIZE2)
 								GROMBuffer = grom_seg2[GROMPtr-0x6000];
 							else
 								GROMBuffer = UNIMPLEMENTED_MEMORY_VALUE;
@@ -564,7 +602,7 @@ extern HFILE spoolFile;
 #ifdef GROM_SIZE2
 							if(GROMPtr<0x6000)
 								GROMBuffer = grom_seg[GROMPtr];
-							else if(GROMPtr<0x6000+0x8000)
+							else if(GROMPtr<0x6000+GROM_SIZE2)
 								GROMBuffer = grom_seg2[GROMPtr-0x6000];
 							else
 								GROMBuffer = UNIMPLEMENTED_MEMORY_VALUE;
@@ -592,11 +630,11 @@ extern HFILE spoolFile;
 void _fastcall PutValueCRU(uint16_t r12,uint16_t t,uint8_t cnt) {
 
 #ifdef _DEBUG
-					{char myBuf[128];
+/*					{char myBuf[128];
 extern HFILE spoolFile;
 					wsprintf(myBuf,"CRU put: r12=%04x, %04x %02x\n",r12,t,cnt);
 				_lwrite(spoolFile,myBuf,strlen(myBuf));
-				}
+				}*/
 #endif
 //	al boot:
 //CRU put: r12=0006, 0000: 00 08			// kbd
@@ -621,11 +659,12 @@ extern HFILE spoolFile;
 		}
 	else if(t >= 0x0000 && t < 0x0400) {		// Keyboard (CRU?? https://www.unige.ch/medecine/nouspikel/ti99/cru.htm
 		}*/
+	if(r12==0x00) {			// tastiera?? cos'è? è a inizio SCAN keyboard con 21: potrebbe essere caps-lock (da Classic99
+		}
 	}
 
 void _fastcall PutIntValue(uint16_t t,uint16_t t1) {
 	register uint16_t i;
-	uint16_t t2=t;
 
 // printf("rom_seg: %04x, p: %04x\n",rom_seg,p);
 

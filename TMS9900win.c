@@ -25,8 +25,8 @@ HANDLE hAccelTable;
 char szAppName[] = APPNAME; // The name of this application
 char INIFile[] = APPNAME".ini";
 char szTitle[]   = APPNAME; // The title bar text
-int AppXSize=534,AppYSize=358,AppYSizeR,YXRatio=1;		// così il rapporto è ok, ev. ingandire o rimpicciolire
-BOOL fExit,debug=1, doppiaDim;
+int AppXSize=HORIZ_SIZE*2+16,AppYSize=VERT_SIZE*2+12,AppYSizeR,YXRatio=1;		// così il rapporto è ok, ev. ingandire o rimpicciolire
+BOOL fExit,debug=0, doppiaDim;
 HWND ghWnd,hStatusWnd;
 HBRUSH hBrush;
 HPEN hPen1;
@@ -55,9 +55,9 @@ COLORREF Colori[16]={		//
 UINT hTimer;
 extern BOOL ColdReset;
 extern BYTE CPUPins;
-extern BYTE CPUClock,HWClock;
+extern WORD CPUClock,HWClock;
 extern BYTE ram_seg[RAM_SIZE];
-extern BYTE rom_seg[],rom_seg2[],grom_seg[];
+extern BYTE rom_seg[],rom_seg2[],grom_seg[],grom_seg2[];
 extern BYTE TMS9918Reg[],TMS9918RegS,TMS9918Sel,TMS9918WriteStage;
 extern BYTE TMS9919[]; 
 extern BYTE TMS9901[];
@@ -72,7 +72,13 @@ LARGE_INTEGER pcFrequency;
 
 extern const unsigned char TI994A_BIN_GROM0[],TI994A_BIN_GROM1[],TI994A_BIN_GROM2[],
 	TI994A_BIN2[],TI994A_BIN_U610[],TI994A_BIN_U611[],
-	TI994AGROMData[]		/* prova... da classic99*/;
+	TI994AROMExtendedBASIC[],TI994AROMSpaceInvaders[],TI994AROMStarTrek[],
+	TI994AGROMData[],		/* prova... da classic99*/
+	TI994AGROMExtendedBASIC[],
+//	TI994AGROMExtendedBASIC_1[],TI994AGROMExtendedBASIC_2[],TI994AGROMExtendedBASIC_3[],TI994AGROMExtendedBASIC_4[],
+	TI994AGROMAssembler[],TI994AGROMCentipede[],TI994AGROMSpaceInvaders[],TI994AGROMStarTrek[],TI994AGROMQBert[],
+	TI994AGROMDemo[]
+	;
 
 
 int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
@@ -153,7 +159,7 @@ int UpdateScreen(HDC hDC,SWORD rowIni, SWORD rowFin) {
 			}
 		goto do_plot;
     }
-  else if(rowIni>=0 && rowIni<=192) {
+  else if(rowIni>=0 && rowIni<192) {
     
 		switch(videoMode) {
 			case 0:     // graphics 1
@@ -175,18 +181,19 @@ int UpdateScreen(HDC hDC,SWORD rowIni, SWORD rowFin) {
 							}
 						}
 					}
+
 handle_sprites:
 				{ // OVVIAMENTE sarebbe meglio gestirli riga per riga...!
 				struct SPRITE_ATTR *sa;
 				BYTE ssize=TMS9918Reg[1] & 2 ? 32 : 8,smag=TMS9918Reg[1] & 1 ? 16 : 8;
 				BYTE j;
       
-				sa=((struct SPRITE_ATTR *)&TMSVideoRAM[spriteAttrAddress]);
-				for(i=0; i<32; i++) {
+				sa=((struct SPRITE_ATTR *)&TMSVideoRAM[spriteAttrAddress+(32-1)*sizeof(struct SPRITE_ATTR)]);
+				for(i=0; i<32; i++) {			// screen order inverso!
 					struct SPRITE_ATTR *sa2;
         
 					if(sa->ypos>=LAST_SPRITE_YPOS)
-						break;		// continue; se una è fuori schermo anchele successive spariscono!
+						break;		// continue; se una è fuori schermo anche le successive spariscono!
         
 					j=smag*(ssize==32 ? 2 : 1);
 					sa2=sa+1;
@@ -203,7 +210,16 @@ handle_sprites:
 						sa2++;
 						}
         
-					p1=((BYTE*)&TMSVideoRAM[spritePatternAddress]) + ((WORD)sa->name*ssize);
+#if 0
+					TMSVideoRAM[spritePatternAddress+i*8]=rand();TMSVideoRAM[spritePatternAddress+i*8+3]=58;
+//					TMSVideoRAM[spritePatternAddress+8]=16;TMSVideoRAM[spritePatternAddress+12]=40;
+//					TMSVideoRAM[spritePatternAddress+16]=25;TMSVideoRAM[spritePatternAddress+21]=40;
+					sa->color=i;
+sa->name=i;//TEST!
+sa->xpos=timeGetTime()/8 /*40+i*4*/; sa->ypos=5+i*10;
+#endif
+
+					p1=((BYTE*)&TMSVideoRAM[spritePatternAddress]) + (((WORD)sa->name)*ssize);
 					j=ssize;
 					if(sa->ypos > 0xe1)     // Y diventa negativo..
 						;
@@ -212,9 +228,12 @@ handle_sprites:
 	//        setAddrWindow(sa->xpos/2,sa->ypos/2,8/2,8/2);
 					color1=sa->color; color0=TMS9918Reg[7] & 0xf;
         
+					if(sa->ypos<rowIni || sa->ypos>rowFin)
+						goto skippa_sprite;
+
 					for(py=0; py<ssize; py++) {
 						BYTE oldpixel;
-						pVideoRAM=(BYTE*)&VideoRAM[0]+(py+sa->ypos)*(((HORIZ_SIZE/2)+(HORIZ_OFFSCREEN*2)))+sa->xpos;
+						pVideoRAM=(BYTE*)&VideoRAM[0]+(py+sa->ypos)*(((HORIZ_SIZE/2)+(HORIZ_OFFSCREEN*2)))+sa->xpos/2;
 						ch1=*p1++;
 						if(smag==16) {
 	/*            writedata16x2(graphColors[ch2 & B8(10000000 ? color1 : color0],graphColors[ch2 & B8(10000000 ? color1 : color0]);
@@ -311,8 +330,9 @@ handle_sprites:
 								break;
 							}
 						}
-          
-					sa++;
+
+skippa_sprite:
+					sa--;
 					}
 				}
 				break;
@@ -520,8 +540,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 							_lclose(myFile);
 							}
 						else
-							MessageBox(hWnd,"Impossibile caricare",
-								szAppName,MB_OK|MB_ICONHAND);
+							MessageBox(hWnd,"Impossibile caricare",	szAppName,MB_OK|MB_ICONHAND);
 						}
 					}
 					break;
@@ -558,6 +577,68 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 					}
 					break;
 
+				case ID_FILE_OPEN2:
+					{
+					OPENFILENAME ofn;       // common dialog box structure
+					TCHAR szFile[260] = { 0 };       // if using TCHAR macros
+
+					// Initialize OPENFILENAME
+					ZeroMemory(&ofn, sizeof(ofn));
+					ofn.lStructSize = sizeof(ofn);
+					ofn.hwndOwner = hWnd;
+					ofn.lpstrFile = szFile;
+					ofn.nMaxFile = sizeof(szFile);
+					ofn.lpstrFilter = "Binari\0*.BIN\0Tutti\0*.*\0";
+					ofn.nFilterIndex = 1;
+					ofn.lpstrFileTitle = NULL;
+					ofn.nMaxFileTitle = 0;
+					ofn.lpstrInitialDir = NULL;
+					ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+
+					if(GetOpenFileName(&ofn) == TRUE) {
+						myFile=_lopen(ofn.lpstrFile,OF_READ);
+						if(myFile != -1) {
+							_lread(myFile,TMSVideoRAM,TMSVIDEORAM_SIZE);
+							_lclose(myFile);
+							}
+						else
+							MessageBox(hWnd,"Impossibile caricare",	szAppName,MB_OK|MB_ICONHAND);
+						}
+					}
+					break;
+
+				case ID_FILE_SAVE_AS2:
+					{
+					OPENFILENAME ofn;       // common dialog box structure
+					TCHAR szFile[260] = { 0 };       // if using TCHAR macros
+
+					// Initialize OPENFILENAME
+					ZeroMemory(&ofn, sizeof(ofn));
+					ofn.lStructSize = sizeof(ofn);
+					ofn.hwndOwner = hWnd;
+					ofn.lpstrFile = szFile;
+					ofn.nMaxFile = sizeof(szFile);
+					ofn.lpstrFilter = "Binari\0*.BIN\0Tutti\0*.*\0";
+					ofn.nFilterIndex = 1;
+					ofn.lpstrFileTitle = NULL;
+					ofn.nMaxFileTitle = 0;
+					ofn.lpstrInitialDir = NULL;
+					ofn.Flags = OFN_PATHMUSTEXIST;
+
+					if(GetOpenFileName(&ofn) == TRUE) {
+							// use ofn.lpstrFile
+						myFile=_lcreat(ofn.lpstrFile,0);
+						if(myFile != -1) {
+							_lwrite(myFile,TMSVideoRAM,TMSVIDEORAM_SIZE);
+							_lclose(myFile);
+							}
+						else
+							MessageBox(hWnd,"Impossibile caricare",szAppName,MB_OK|MB_ICONHAND);
+						}
+
+					}
+					break;
+
 				case ID_OPZIONI_DEBUG:
 					debug=!debug;
 					break;
@@ -565,11 +646,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 				case ID_OPZIONI_TRACE:
 //					_f.SR.Trace =!_f.SR.Trace ;
 
-						myFile=_lcreat("tms9918.bin",0);			// debug video!
+/*						myFile=_lcreat("tms9918.bin",0);			// debug video!
 						if(myFile != -1) {
 							_lwrite(myFile,TMSVideoRAM,TMSVIDEORAM_SIZE);
 							_lclose(myFile);
-							}
+							}*/
 
 					break;
 
@@ -683,8 +764,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 			GetClientRect(hWnd,&rc);
 			AppXSize=rc.right-rc.left;
 			AppYSize=rc.bottom-rc.top;
-			AppYSizeR=rc.bottom-rc.top-(GetSystemMetrics(SM_CYSIZEFRAME)*2);
-			MoveWindow(hStatusWnd,0,rc.bottom-16,rc.right,16,TRUE);
+			AppYSizeR=rc.bottom-rc.top-(GetSystemMetrics(SM_CYSIZEFRAME)*2)-1;
+			MoveWindow(hStatusWnd,0,rc.bottom-15,rc.right,16,TRUE);
 			break;        
 
 		case WM_KEYDOWN:
@@ -705,6 +786,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 			break;        
 
 		case WM_CREATE:
+			QueryPerformanceFrequency(&pcFrequency);		// in KHz => 2800000 su PC; 3420000 2025 (i7)
+			CPUClock=pcFrequency.QuadPart/CPU_CLOCK_DIVIDER;	// su PC greggiod con 6 ho un clock 68000 ragionevolmente simile all'originale (7MHz
+			HWClock=pcFrequency.QuadPart/HW_CLOCK_DIVIDER;	// 
+
 //			bInFront=GetPrivateProfileInt(APPNAME,"SempreInPrimoPiano",0,INIFile);
 
 			bmI=GlobalAlloc(GPTR,sizeof(BITMAPINFO)+(sizeof(COLORREF)*16));
@@ -751,8 +836,30 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 #endif
 	
 	
-	memcpy(grom_seg,TI994AGROMData,0x6000);
+//	memcpy(grom_seg,TI994AGROMData,0x6000);
+#ifdef GROM_SIZE2
+#if GROM_SIZE2==0x8000
+	memcpy(grom_seg2,TI994AGROMExtendedBASIC,0x8000 /*GROM_SIZE2*/);
+/*	memcpy(grom_seg2,TI994AGROMExtendedBASIC_1,0x1800);
+	memcpy(grom_seg2+0x2000,TI994AGROMExtendedBASIC_2,0x1800);
+	memcpy(grom_seg2+0x2000*2,TI994AGROMExtendedBASIC_3,0x1800);
+	memcpy(grom_seg2+0x2000*3,TI994AGROMExtendedBASIC_4,0x1800);*/
+	memcpy(rom_seg2,TI994AROMExtendedBASIC,ROM_SIZE2);		// non va, non si capisce dove iniziano i 0x4000 (6000 è troppo
 
+//	memcpy(grom_seg2,TI994AGROMDemo,0x8000);		// funzia benone fino a "scacchi"...
+
+#elif GROM_SIZE2==0x4000
+	memcpy(grom_seg2,TI994AGROMStarTrek,0x4000);
+	memcpy(rom_seg2,TI994AROMStarTrek,ROM_SIZE2);
+#elif GROM_SIZE2==0x2000
+	memcpy(grom_seg2,TI994AGROMAssembler,0x1800);
+	memcpy(grom_seg2,TI994AGROMCentipede,0x1800);
+	memcpy(grom_seg2,TI994AGROMSpaceInvaders,0x1800);
+	memcpy(rom_seg2,TI994AROMSpaceInvaders,ROM_SIZE2);
+#endif
+
+
+#endif
 
 
   for(i=0; i<8192; i+=2) {
@@ -821,6 +928,9 @@ esciprg:
    	  CheckMenuItem((HMENU)wParam,ID_OPZIONI_DEBUG,MF_BYCOMMAND | (debug ? MF_CHECKED : MF_UNCHECKED));
 //   	  CheckMenuItem((HMENU)wParam,ID_OPZIONI_TRACE,MF_BYCOMMAND | (_f.SR.Trace ? MF_CHECKED : MF_UNCHECKED));
    	  CheckMenuItem((HMENU)wParam,ID_OPZIONI_DIMENSIONEDOPPIA,MF_BYCOMMAND | (doppiaDim ? MF_CHECKED : MF_UNCHECKED));
+   	  CheckMenuItem((HMENU)wParam,ID_OPZIONI_VELOCIT_LENTO,MF_BYCOMMAND | (CPUClock==pcFrequency.QuadPart/(CPU_CLOCK_DIVIDER/2) ? MF_CHECKED : MF_UNCHECKED));
+   	  CheckMenuItem((HMENU)wParam,ID_OPZIONI_VELOCIT_NORMALE,MF_BYCOMMAND | (CPUClock==pcFrequency.QuadPart/(CPU_CLOCK_DIVIDER) ? MF_CHECKED : MF_UNCHECKED));
+   	  CheckMenuItem((HMENU)wParam,ID_OPZIONI_VELOCIT_VELOCE,MF_BYCOMMAND | (CPUClock==pcFrequency.QuadPart/(CPU_CLOCK_DIVIDER*2) ? MF_CHECKED : MF_UNCHECKED));
 			break;
 
 		default:
@@ -903,11 +1013,18 @@ BOOL InitApplication(HINSTANCE hInstance) {
   }
 
 BOOL InitInstance(HINSTANCE hInstance, int nCmdShow) {
+	int x,y;
+
+#ifndef _DEBUG
+	x=CW_USEDEFAULT; y=CW_USEDEFAULT;
+#else		// rompe i coglioni in alto a sx :)
+	x=50; y=250;
+#endif
 	
 	g_hinst=hInstance;
 
 	ghWnd = CreateWindow(szAppName, szTitle, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_CLIPCHILDREN | WS_THICKFRAME,
-		CW_USEDEFAULT, CW_USEDEFAULT, 
+		x, y, 
 		AppXSize+GetSystemMetrics(SM_CXSIZEFRAME)*2,AppYSize+GetSystemMetrics(SM_CYSIZEFRAME)*2+GetSystemMetrics(SM_CYMENUSIZE)+GetSystemMetrics(SM_CYSIZE)+18,
 		NULL, NULL, hInstance, NULL);
 
