@@ -3,6 +3,7 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include <conio.h>
+#include <math.h>
 #include "tms9900win.h"
 
 #pragma check_stack(off)
@@ -38,7 +39,8 @@ volatile BYTE TIMIRQ,VIDIRQ;
 volatile WORD TIMEr;
 BYTE TMS9918Reg[8],TMS9918RegS,TMS9918Sel,TMS9918WriteStage,TMS9918Buffer;
 WORD TMS9918RAMPtr;
-BYTE TMS9919[1];    // https://www.unige.ch/medecine/nouspikel/ti99/tms9919.htm
+BYTE TMS9919[1],TMSvolume[4];
+WORD TMSfreq[4];    // https://www.unige.ch/medecine/nouspikel/ti99/tms9919.htm
 BYTE TMS9901[32];   // https://www.unige.ch/medecine/nouspikel/ti99/tms9901.htm
 BYTE TMS5220[1];		// https://www.unige.ch/medecine/nouspikel/ti99/speech.htm
 BYTE TMSVideoRAM[TMSVIDEORAM_SIZE];		// 
@@ -84,11 +86,16 @@ uint8_t _fastcall GetValue(uint16_t t) {
 				i=TMS9919[0];
 				break;
 			case 0x88:
-				switch(t & 0xfe) {
+				switch(t & 0x3e) {
 					case 0x00:		// VDP read data
 						TMS9918WriteStage=0;
 						i=TMS9918Buffer;
 						TMS9918Buffer=TMSVideoRAM[(TMS9918RAMPtr++) & (TMSVIDEORAM_SIZE-1)];
+/*				{char myBuf[128];
+extern HFILE spoolFile;
+					wsprintf(myBuf,"videoRAM read: %04X: %02x; GROM ptr=%04X\n",TMS9918RAMPtr,i,GROMPtr);
+				_lwrite(spoolFile,myBuf,strlen(myBuf));
+				}*/
 						break;
 					case 0x02:		// VDP read status register
 						i=TMS9918RegS;
@@ -98,7 +105,7 @@ uint8_t _fastcall GetValue(uint16_t t) {
 					}
 				break;
 			case 0x8c:
-				switch(t & 0xfe) {
+				switch(t & 0x3e) {
 					case 0x00:		// VDP write data (non dovrebbe esistere
 						TMS9918WriteStage = 0;
 						break;
@@ -313,6 +320,11 @@ extern HFILE spoolFile;
 	if(!cnt)
 		cnt=16;
 	if(r12>=6 && r12<=0x14) {
+//			if(( m_CapsLock == false ) && ( address == 7 ))		{
+		 //((GetKeyState(VK_CAPITAL) & 0x0001)!=0)
+//			return 1;
+//		}
+		t=0xff;
 		for(i=1; i<=cnt; i++) {			// cnt = 1..8 qua (direi
 			t >>= 1;
 			t |= 0x80;
@@ -395,17 +407,30 @@ void _fastcall PutValue(uint16_t t,uint8_t t1) {
     switch(t >> 8) {
       case 0x84:
 			{
-			uint8_t sel=(t & 0x3e),chan=t1 >> 4,parm=t1 & 0xf;
+			uint8_t sel=(t & 0x3e),chan=(t1 >> 5) & 3;
 			switch(sel) {
 				case 0x0:		// sound				https://unige.ch/medecine/nouspikel/ti99/tms9919.htm
 					TMS9919[0]=t1;
-					if(chan & 1) {		// volume (9f bf df ff alla partenza
+					if(t1 & 0x80) {		// comando
+						if(t1 & 0x10) {		// volume (9f bf df ff alla partenza
+							TMSvolume[chan]=t1 & 0xf;
+							}
+						else {			// parte bassa freq
+							TMSfreq[chan]=t1 & 0xf;
+							}
 						}
-					else {
+					else {				// 2° parte freq
 						if(t1==0x20)		// patch brutale! sarebbe il secondo parametro: bf df ff  80 05 92
 							PlayResource(MAKEINTRESOURCE(IDR_WAVE_TONE1),FALSE);
+							
 						else if(t1==0x05)
 							PlayResource(MAKEINTRESOURCE(IDR_WAVE_TONE2),FALSE);
+							
+						TMSfreq[chan] |= (t1 & 0x3f) << 4;
+/*						if(TMSfreq[chan])			// safety
+							playTone(0.3, sine_generator, 223700L/4/TMSfreq[chan], 22050, 
+								100-(TMSvolume[chan]*6), TRUE);		// diceva /2 ... SISTEMARE PLAY è ciucca di *2
+								*/
 						}
 /*
 Generator 	Frequency 	Volume
@@ -418,11 +443,11 @@ Frequency = 111860.8 Hz / xyz
 Volume v:  +1 = -2 dB (>F = off)
 */
 #ifdef _DEBUG
-/*				{char myBuf[128];
+				{char myBuf[128];
 extern HFILE spoolFile;
 					wsprintf(myBuf,"sound write: %02x\n",t1);
 				_lwrite(spoolFile,myBuf,strlen(myBuf));
-				}*/
+				}
 #endif
 	        break;
 				}
@@ -457,23 +482,33 @@ extern HFILE spoolFile;
 				}*/
 #endif
 						TMSVideoRAM[(TMS9918RAMPtr++) & (TMSVIDEORAM_SIZE-1)]=t1;
-
-						TMS9918Buffer = t1;
 						break;
 					case 0x02:		// VDP write register
+#ifdef _DEBUG
+/*				{char myBuf[128];
+extern HFILE spoolFile;
+					wsprintf(myBuf,"video write: %02X,%u: %02x; GROM ptr=%04X\n",TMS9918Sel,TMS9918WriteStage,t1,GROMPtr);
+				_lwrite(spoolFile,myBuf,strlen(myBuf));
+				}*/
+#endif
 						if(!TMS9918WriteStage) {   /* first stage byte - either an address LSB or a register value */
 							TMS9918Sel = t1;
 							TMS9918WriteStage = 1;
 							}
 						else {    /* second byte - either a register number or an address MSB */
 							if(t1 & 0x80) { /* register */
-				//          if((t1 & 0x7f) < 8)
 								TMS9918Reg[t1 & 0x07] = TMS9918Sel;
+/*if((t1 & 7) ==1)	*/		/*	{char myBuf[128];
+extern HFILE spoolFile;
+extern SWORD _pc;
+					wsprintf(myBuf,"videoREG[%u]   write: %04X: %02x; GROM ptr=%04X\n",t1,_pc,TMS9918Sel,GROMPtr);
+				_lwrite(spoolFile,myBuf,strlen(myBuf));
+				}*/
 								}
 							else {  /* address */
 								TMS9918RAMPtr = MAKEWORD(TMS9918Sel,t1 & 0x3f);
 								if(!(t1 & 0x40)) {
-									TMS9918Buffer = TMSVideoRAM[(TMS9918RAMPtr /*++*/) & (TMSVIDEORAM_SIZE-1)];
+									TMS9918Buffer = TMSVideoRAM[(TMS9918RAMPtr++) & (TMSVIDEORAM_SIZE-1)];
 									}
 								}
 							TMS9918WriteStage = 0;
@@ -660,6 +695,9 @@ extern HFILE spoolFile;
 	else if(t >= 0x0000 && t < 0x0400) {		// Keyboard (CRU?? https://www.unige.ch/medecine/nouspikel/ti99/cru.htm
 		}*/
 	if(r12==0x00) {			// tastiera?? cos'è? è a inizio SCAN keyboard con 21: potrebbe essere caps-lock (da Classic99
+//				m_CapsLock = ( data != 0 ) ? true : false;
+		 //((GetKeyState(VK_CAPITAL) & 0x0001)!=0)
+
 		}
 	}
 
@@ -712,6 +750,100 @@ BOOL PlayResource(LPSTR lpName,BOOL bStop) {
  
   FreeResource(hRes); 
   return bRtn; 
+	}
+
+
+MMRESULT playTone(float nSeconds, generator_type signal, uint16_t context, uint32_t samplesPerSecond, 
+									uint8_t volume,uint8_t bWait) {
+	// https://stackoverflow.com/questions/5814869/playing-an-arbitrary-sound-on-windows
+  UINT timePeriod = 1;
+	size_t i;
+	unsigned short j;
+  /*const*/ size_t nBuffer;
+  uint8_t *buffer;
+
+  MMRESULT mmresult = MMSYSERR_NOERROR;
+  WAVEFORMATEX waveFormat = {0};
+  waveFormat.cbSize = 0;
+  waveFormat.wFormatTag = WAVE_FORMAT_PCM /*WAVE_FORMAT_IEEE_FLOAT*/;
+  waveFormat.wBitsPerSample = CHAR_BIT*2;  // ?? CHAR_BIT * sizeof(buffer[0]);
+  waveFormat.nChannels = 2;
+  waveFormat.nSamplesPerSec = samplesPerSecond;
+  waveFormat.nBlockAlign = waveFormat.nChannels * waveFormat.wBitsPerSample / CHAR_BIT;
+  waveFormat.nAvgBytesPerSec = waveFormat.nSamplesPerSec * waveFormat.nBlockAlign;
+  nBuffer = (size_t)(nSeconds * waveFormat.nChannels * waveFormat.nSamplesPerSec);
+
+
+  buffer = (uint16_t *)calloc(nBuffer, sizeof(*buffer));
+  __try {
+    HWAVEOUT hWavOut = NULL;
+    for(i=0; i < nBuffer; i += waveFormat.nChannels)
+      for(j=0; j < waveFormat.nChannels; j++)
+        buffer[i+j] = (*signal)((i+j) * nSeconds / nBuffer, j, context, volume);
+    mmresult = waveOutOpen(&hWavOut, WAVE_MAPPER, &waveFormat, 0, 0, CALLBACK_NULL);
+    if(mmresult == MMSYSERR_NOERROR) {
+      __try {
+        timeBeginPeriod(timePeriod);
+        __try {
+          WAVEHDR hdr = {0};
+          hdr.dwBufferLength = (ULONG)(nBuffer * sizeof(buffer[0]));
+          hdr.lpData = (LPSTR)&buffer[0];
+          mmresult = waveOutPrepareHeader(hWavOut,&hdr,sizeof(hdr));
+          if(mmresult == MMSYSERR_NOERROR) {
+            __try {
+              ULONG start = GetTickCount();
+              mmresult = waveOutWrite(hWavOut, &hdr, sizeof(hdr));
+							if(bWait)			// ovviamente non va così... bisogna fare asincrona...
+								Sleep((ULONG)(1000 * nSeconds - (GetTickCount() - start)));
+              }
+            __finally { 
+							waveOutUnprepareHeader(hWavOut, &hdr, sizeof(hdr)); }
+              }
+            }
+          __finally { 
+						timeEndPeriod(timePeriod); 
+						}
+          }
+        __finally { 
+					waveOutClose(hWavOut); 
+					}
+			}
+		}
+	__finally { 
+		free(buffer); 
+		}
+  return mmresult;
+	}
+
+// Triangle wave generator
+uint16_t triangle_generator(float timeInSeconds, uint8_t channel, uint16_t context) {
+  const uint16_t frequency = context;
+  const float angle = (float)(frequency * 2 * PI * timeInSeconds);
+
+  switch(channel) {
+    case 0: 
+			return asin(sin(angle + 0 * PI / 2))*0x7f;
+			break;
+//return (float)asin(sin(angle + 0 * M_PI / 2)) * 2 / M_PI;.
+    default:
+			return asin(sin(angle + 1 * PI / 2))*0x7f;
+			break;
+    }
+	}
+
+// Sine tone generator
+uint16_t sine_generator(float timeInSeconds, uint8_t channel, uint16_t context) {
+  const uint16_t frequency = context;
+  const float angle = (float)(frequency * 2 * PI * timeInSeconds);
+
+  switch(channel) {
+    case 0: 
+			return sin(angle + 0 * PI / 2)*0x7f;
+			break;
+    default:
+			return sin(angle + 1 * PI / 2)*0x7f;
+			break;
+		}
 	}
 
 

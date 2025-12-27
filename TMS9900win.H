@@ -11,6 +11,8 @@
 #include <shell.h>
 #endif
 
+#include <mmsystem.h>
+#include <stdint.h>
 #include "afxres.h"
 #include "resource.h"
 
@@ -144,11 +146,11 @@ union RESULT {
 #define TMS_R1_SPRITE_MAG2        0x01
 #define LAST_SPRITE_YPOS	        0xC0		// dice 0xBE  https://www.unige.ch/medecine/nouspikel/ti99/tms9918a.htm#Sprites
 
-#define TMS_DEFAULT_VRAM_NAME_ADDRESS          0x3800		// qua boh, forse 0
-#define TMS_DEFAULT_VRAM_COLOR_ADDRESS         0x0400
+#define TMS_DEFAULT_VRAM_NAME_ADDRESS          0x0000		// qua boh, forse 0
+#define TMS_DEFAULT_VRAM_COLOR_ADDRESS         0x0300
 #define TMS_DEFAULT_VRAM_PATT_ADDRESS          0x0800
-#define TMS_DEFAULT_VRAM_SPRITE_ATTR_ADDRESS   0x0500
-#define TMS_DEFAULT_VRAM_SPRITE_PATT_ADDRESS   0x1000
+#define TMS_DEFAULT_VRAM_SPRITE_ATTR_ADDRESS   0x0300
+#define TMS_DEFAULT_VRAM_SPRITE_PATT_ADDRESS   0x3000
 extern BYTE TMSVideoRAM[];
 #pragma pack( push, before_structs )
 #pragma pack(1)
@@ -189,6 +191,10 @@ LRESULT CALLBACK About(HWND, UINT, WPARAM, LPARAM);
 LRESULT CALLBACK Dump0(HWND, UINT, WPARAM, LPARAM);
 LRESULT CALLBACK Dump1(HWND, UINT, WPARAM, LPARAM);
 BOOL PlayResource(LPSTR lpName,BOOL bStop);
+typedef uint16_t (*generator_type)(float, uint8_t, uint16_t, uint8_t);
+uint16_t sine_generator(float timeInSeconds, uint8_t channel, uint16_t context);
+uint16_t triangle_generator(float timeInSeconds, uint8_t channel, uint16_t context);
+MMRESULT playTone(float nSeconds, generator_type signal, uint16_t context, uint32_t samplesPerSecond, uint8_t volume, uint8_t bWait);
 int decodeKBD(int, long, BOOL);
 int UpdateScreen(HDC,SWORD,SWORD);
 
@@ -257,7 +263,7 @@ https://post.bytes.com/forum/topic/c/176274-binary-constant-macros
 #define GET_WORKING_REG2() GET_REG(workingReg2Index)      // 
 #define SET_WORKING_REG2(n) SET_REG(workingReg2Index,n);
 
-// USARE, MA OCCHIO!!  ci sono le piccole differenze con getPipe e pc+=2
+// USARE, MA OCCHIO!!  ci sono le piccole differenze con getPipe e pc+=2, e anche autoincrement
 #define COMPUTE_SOURCE \
   switch(workingTS) {\
     case REGISTER_DIRECT:\

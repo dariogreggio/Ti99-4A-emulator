@@ -188,8 +188,12 @@ int decodeKBD(int ch, long l, BOOL m) {
 			case VK_CAPITAL:
 				break;
 			case VK_MULTIPLY:
+				Keyboard[5]&=~B8(10000000);
+				Keyboard[3]&=~B8(00100000);
 				break;
 			case VK_SUBTRACT:
+				Keyboard[5]&=~B8(10000000);
+				Keyboard[0]&=~B8(00000100);
 				break;
 			case 0xdb:		// '?
 				break;
@@ -205,6 +209,8 @@ int decodeKBD(int ch, long l, BOOL m) {
 				Keyboard[6]&=~B8(00001000);			// sarebbe T o G a seconda
 				break;
 			case VK_ADD:
+				Keyboard[5]&=~B8(10000000);
+				Keyboard[0]&=~B8(10000000);
 				break;
 			case 0xc0:		// ò@
 				break;
@@ -442,14 +448,20 @@ int decodeKBD(int ch, long l, BOOL m) {
 			case VK_CAPITAL:
 				break;
 			case VK_MULTIPLY:
+				Keyboard[5]|=B8(10000000);
+				Keyboard[3]|=B8(00100000);
 				break;
 			case 0xbb:
 				Keyboard[4]|=B8(10000000);
 				Keyboard[6]|=B8(00001000);			// sarebbe T o G a seconda
 				break;
 			case VK_ADD:
+				Keyboard[5]|=B8(10000000);
+				Keyboard[0]|=B8(10000000);
 				break;
 			case VK_SUBTRACT:
+				Keyboard[5]|=B8(10000000);
+				Keyboard[0]|=B8(00000100);
 				break;
 			case 0xbd:		// -_
 			case VK_DIVIDE:
