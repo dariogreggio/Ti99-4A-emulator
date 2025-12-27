@@ -50,22 +50,27 @@ union PIPE Pipe2;
 //#define CARRY_ADD_16() (!!(((res2.x & res1.x) | (~res3.x &	(res2.x | res1.x))) & 0x8000))
 #define CARRY_ADD_16() (!!(res3.x < res2.x))
 #define OVF_ADD_16() (!!(((res2.x ^ res3.x) & (res1.x ^ res3.x)) & 0x8000))
-//#define CARRY_SUB_8() (!!(((res2.b.l & res3.b.l) | (~res1.b.l & (res2.b.l | res3.b.l))) & 0x80))		// ((S & R) | (~D & (S | R)))
-#define CARRY_SUB_8() (!!((res3.b.l<res2.b.l) || (res2.b.l==0)))
+#define CARRY_SUB_8() (!!(((res2.b.l & res3.b.l) | (~res1.b.l & (res2.b.l | res3.b.l))) & 0x80))		// ((S & R) | (~D & (S | R)))
+//#define CARRY_SUB_8() (!!((res3.b.l<res2.b.l) || (res2.b.l==0)))
 #define OVF_SUB_8()  (!!(((res2.b.l ^ res1.b.l) & (res3.b.l ^ res1.b.l)) & 0x80))			// ((S^D) & (R^D))
-//#define CARRY_SUB_16() (!!(((res2.x & res3.x) | (~res1.x &	(res2.x | res3.x))) & 0x8000))
-#define CARRY_SUB_16() (!!((res3.x<res2.x) || (res2.x==0)))
+#define CARRY_SUB_16() (!!(((res2.x & res3.x) | (~res1.x &	(res2.x | res3.x))) & 0x8000))
+//#define CARRY_SUB_16() (!!((res3.x<res2.x) || (res2.x==0)))
 #define OVF_SUB_16() (!!(((res2.x ^ res1.x) & (res3.x ^ res1.x)) & 0x8000))
 
 extern BYTE TMS9918Reg[8],TMS9918RegS;
  
 
+#ifdef _DEBUG
+	SWORD _pc=0;
+#endif
 int Emulate(int mode) {
 	BOOL bMsgAvail;
 	MSG msg;
 	HDC hDC;
 	
+#ifndef _DEBUG
 	SWORD _pc=0;
+#endif
 	SWORD _wp=0;
 	BYTE IPL=0;
   union T_REGISTERS *regs=NULL;
@@ -253,6 +258,11 @@ int Emulate(int mode) {
 			src[3]=GetPipe(_pc+6);
 			Disassemble(src,-1,myBuf,0,_pc,7);
 			_lwrite(spoolFile,myBuf,strlen(myBuf));
+			if(_pc==0x78) {		// fetch GROM token
+				extern BYTE GROMBuffer;
+				wsprintf(myBuf,"GROMcode %02X\n",GROMBuffer);
+				_lwrite(spoolFile,myBuf,strlen(myBuf));
+				}
 			}
 			}
 		/*if(kbhit()) {
@@ -265,7 +275,7 @@ int Emulate(int mode) {
 			}*/
     
 		{			extern WORD GROMPtr;
-      if(_pc == 0x610  /*_pc == 0xb24 && */ /*_pc == 0xc0c*/ /* && GROMPtr==0x1d7*/) {
+      if(_pc == 0xd84  /*_pc == 0xb24 && */ /*_pc == 0xc0c*/ /* && GROMPtr==0x1d7*/) {
 				int T;
         T=0;
         }
@@ -463,7 +473,7 @@ aggFlag16Z:
             case B8(0000010011) << 6:     // CLR Clear Operand
               res3.x=0;
               
-store16_2_noF:
+store16_S_noF:
               switch(workingTS) {
                 case REGISTER_DIRECT:
                   SET_WORKING_REG(res3.x);
@@ -486,7 +496,7 @@ store16_2_noF:
               break;
             case B8(0000011100) << 6:     // SETO Set To Ones
               res3.x=0xffff;
-              goto store16_2_noF;
+              goto store16_S_noF;
               break;
             case B8(0000010101) << 6:     // INV Invert
               switch(workingTS) {
@@ -510,7 +520,7 @@ store16_2_noF:
                 }
               res3.x=~res1.x;
 
-store16_2:
+store16_S:
               switch(workingTS) {
                 case REGISTER_DIRECT:
                   SET_WORKING_REG(res3.x);
@@ -545,18 +555,18 @@ store16_2:
                     res2.x=GetIntValue(GET_WORKING_REG()+(int16_t)Pipe2.x);
                   else
                     res2.x=GetIntValue(Pipe2.x);
-                  _pc+=2;
+//                  _pc+=2;
                   break;
                 case REGISTER_INDIRECT_AUTOINCREMENT:
                   res2.x=GetIntValue(GET_WORKING_REG());
-                  SET_WORKING_REG(GET_WORKING_REG()+2);
+//                  SET_WORKING_REG(GET_WORKING_REG()+2);
                   break;
                 }
               res1.x=0;
               res3.x=res1.x-res2.x;
 							_st.Carry=CARRY_SUB_16();
 			        _st.Overflow = OVF_SUB_16();
-              goto store16_2;
+              goto store16_S;
               break;
             case B8(0000011101) << 6:     // ABS Absolute Value
               switch(workingTS) {
@@ -571,18 +581,18 @@ store16_2:
                     res1.x=GetIntValue(GET_WORKING_REG()+(int16_t)Pipe2.x);
                   else
                     res1.x=GetIntValue(Pipe2.x);
-                  _pc+=2;
+//                  _pc+=2;
                   break;
                 case REGISTER_INDIRECT_AUTOINCREMENT:
                   res1.x=GetIntValue(GET_WORKING_REG());
-                  SET_WORKING_REG(GET_WORKING_REG()+2);
+//                  SET_WORKING_REG(GET_WORKING_REG()+2);
                   break;
                 }
-              res3.x=abs(res3.x);
+              res3.x=abs(res1.x);
 
 							//flag van controllati PRIMA!!! 
               
-              goto store16_2;
+              goto store16_S;
               break;
             case B8(0000011011) << 6:     // SWPB Swap Bytes
               switch(workingTS) {
@@ -597,15 +607,15 @@ store16_2:
                     res1.x=GetIntValue(GET_WORKING_REG()+(int16_t)Pipe2.x);
                   else
                     res1.x=GetIntValue(Pipe2.x);
-                  _pc+=2;
+//                  _pc+=2;
                   break;
                 case REGISTER_INDIRECT_AUTOINCREMENT:
                   res1.x=GetIntValue(GET_WORKING_REG());
-                  SET_WORKING_REG(GET_WORKING_REG()+1);
+//                  SET_WORKING_REG(GET_WORKING_REG()+1);
                   break;
                 }
               res3.x=MAKEWORD(HIBYTE(res1.x),LOBYTE(res1.x));
-              goto store16_2_noF;
+              goto store16_S_noF;
               break;
             case B8(0000010110) << 6:     // INC Increment
               switch(workingTS) {
@@ -623,7 +633,7 @@ store16_2:
                   break;
                 case REGISTER_INDIRECT_AUTOINCREMENT:
                   res1.x=GetIntValue(GET_WORKING_REG());
-                  SET_WORKING_REG(GET_WORKING_REG()+2);
+//                  SET_WORKING_REG(GET_WORKING_REG()+2);
                   break;
                 }
               res3.x=res1.x+1;
@@ -631,7 +641,7 @@ store16_2:
               _st.Carry= res3.x < 1 ? 1 : 0;		// v. classic99
 //					  _st.Overflow= (x3==0x8000) ? 1 : 0;
               _st.Overflow= !!(!(res1.x & 0x8000) && (res3.x & 0x8000));
-              goto store16_2;
+              goto store16_S;
               break;
             case B8(0000010111) << 6:     // INCT Increment by Two
               switch(workingTS) {
@@ -649,14 +659,14 @@ store16_2:
                   break;
                 case REGISTER_INDIRECT_AUTOINCREMENT:
                   res1.x=GetIntValue(GET_WORKING_REG());
-                  SET_WORKING_REG(GET_WORKING_REG()+2);
+//                  SET_WORKING_REG(GET_WORKING_REG()+2);
                   break;
                 }
               res3.x=res1.x+2;
               _st.Carry= res3.x < 2 ? 1 : 0;		// v. classic99
 //					  _st.Overflow= ((x3==0x8000)||(x3==0x8001)) ? 1 : 0;
               _st.Overflow= !!(!(res1.x & 0x8000) && (res3.x & 0x8000));
-              goto store16_2;
+              goto store16_S;
               break;
             case B8(0000011000) << 6:     // DEC Decrement
               switch(workingTS) {
@@ -674,14 +684,14 @@ store16_2:
                   break;
                 case REGISTER_INDIRECT_AUTOINCREMENT:
                   res1.x=GetIntValue(GET_WORKING_REG());
-                  SET_WORKING_REG(GET_WORKING_REG()+2);
+//                  SET_WORKING_REG(GET_WORKING_REG()+2);
                   break;
                 }
               res3.x=res1.x-1;
 //              _st.Carry= res3.x & 0x10 ? 0 : 1;		// v. ti99sim
               _st.Carry= res3.x != 0xffff ? 1 : 0;		// v. classic99
               _st.Overflow= !!((res1.x & 0x8000) && !(res3.x & 0x8000));
-              goto store16_2;
+              goto store16_S;
               break;
             case B8(0000011001) << 6:     // DECT Decrement by Two
               switch(workingTS) {
@@ -699,14 +709,14 @@ store16_2:
                   break;
                 case REGISTER_INDIRECT_AUTOINCREMENT:
                   res1.x=GetIntValue(GET_WORKING_REG());
-                  SET_WORKING_REG(GET_WORKING_REG()+2);
+//                  SET_WORKING_REG(GET_WORKING_REG()+2);
                   break;
                 }
               res3.x=res1.x-2;
 //              _st.Carry= res3.x & 0x10 ? 0 : 1;		// v. ti99sim
               _st.Carry= res3.x < 0xfffe ? 1 : 0;		// v. classic99
               _st.Overflow= !!((res1.x & 0x8000) && !(res3.x & 0x8000));
-              goto store16_2;
+              goto store16_S;
               break;
             case B8(0000010010) << 6:     // X Execute
               switch(workingTS) {
@@ -987,7 +997,7 @@ Jump:
         _st.Overflow = OVF_ADD_8();
         _st.Carry=CARRY_ADD_8();
 
-store8_012:
+store8_D:
         switch(workingTD) {
           case REGISTER_DIRECT:
             SET_WORKING_REG2(MAKEWORD(LOBYTE(GET_WORKING_REG2()),res3.b.l));		// se registro, va in MSB
@@ -1225,7 +1235,7 @@ calcParity:
         _st.Carry=CARRY_SUB_8();
 //        _st.Overflow = !!(((res1.b.h & 0x80) != (res2.b.h & 0x80)) && ((res3.b.h & 0x80) != (res2.b.h & 0x80)));
         _st.Overflow = OVF_SUB_8();
-        goto store8_012;
+        goto store8_D;
         break;
       
       case B8(1110) << 12:    // SOC Set ones corresponding
@@ -1269,7 +1279,7 @@ calcParity:
           }
         res3.x=res2.x | res1.x;
         
-store16_012:
+store16_D:
         switch(workingTD) {
           case REGISTER_DIRECT:
             SET_WORKING_REG2(res3.x);
@@ -1331,7 +1341,7 @@ store16_012:
             break;
           }
         res3.b.l=res2.b.l | res1.b.l;
-        goto store8_012;
+        goto store8_D;
         break;
       
       case B8(0100) << 12:    // SZC Set zeros corresponding
@@ -1374,7 +1384,7 @@ store16_012:
             break;
           }
         res3.x=res2.x & ~res1.x;
-        goto store16_012;
+        goto store16_D;
         break;
       case B8(0101) << 12:    // SZCB Set zeros corresponding byte
         switch(workingTS) {
@@ -1416,7 +1426,7 @@ store16_012:
             break;
           }
         res3.b.l=res2.b.l & ~res1.b.l;
-        goto store8_012;
+        goto store8_D;
         break;
       
       case B8(1100) << 12:    // MOV Move
@@ -1441,7 +1451,7 @@ store16_012:
             break;
           }
         res3.x=res1.x;
-        goto store16_012;
+        goto store16_D;
         break;
       case B8(1101) << 12:    // MOVB Move bytes  
         switch(workingTS) {
@@ -1465,7 +1475,7 @@ store16_012:
             break;
           }
         res3.b.l=res1.b.l;
-        goto store8_012;
+        goto store8_D;
         break;
       
       case B8(0010) << 12:    // Compare Ones, Compare Zeros, Exclusive OR
@@ -1631,11 +1641,11 @@ store_dca:
 						res2.x=GET_WORKING_REG2();
             res3.d = res1.x * res2.x;
             SET_WORKING_REG2(HIWORD(res3.d));
-            SET_REG(((WORKING_REG2_INDEX+1) & 0xf),res3.x);   // OKKIO, porcata, & se 15...
+            SET_REG(((WORKING_REG2_INDEX+1) /*& 0xf*/),res3.x);   // OKKIO, porcata, & se 15... dice che deve andare in memoria subito dopo! tipo R16
 //no!            goto aggFlag;
             break;
           case B8(001111) << 10:     // DIV Divide
-            res2.d = MAKELONG(GET_REG((WORKING_REG2_INDEX+1) & 0xf),GET_WORKING_REG2());    // OKKIO...
+            res2.d = MAKELONG(GET_REG((WORKING_REG2_INDEX+1) /*& 0xf*/),GET_WORKING_REG2());    // OKKIO...
             if(!res1.x) {
               //DIVIDE ZERO??
               }
@@ -1660,12 +1670,12 @@ store_dca:
           }
       }
       }*/
-            res3.d = res2.d / (uint32_t)res1.x;		// signed o unsigned??
-            if( res1.x < LOBYTE(res3.d) )
+            if(res2.d < res1.x)
               _st.Overflow = 1;
             else {
+	            res3.d = res2.d / (uint32_t)res1.x;		// signed o unsigned??
               SET_WORKING_REG2(LOWORD(res3.d));
-              SET_REG((WORKING_REG2_INDEX+1) & 0xf,res2.d % (uint32_t)res1.x);   // OKKIO, porcata, & se 15...
+              SET_REG((WORKING_REG2_INDEX+1) /*& 0xf*/,res2.d % (uint32_t)res1.x);   // OKKIO, porcata, & se 15... dice che deve andare in memoria subito dopo! tipo R16
               _st.Overflow = 0;
               }
             break;
@@ -1684,7 +1694,7 @@ store_dca:
 						{uint8_t cnt=WORKING_REG2_INDEX;
             res3.x=GetValueCRU(GET_REG(12),cnt);
 						if(cnt>8) {
-							goto store16_2;
+							goto store16_S;
 							}
 						else {
 							res3.b.l=res3.b.h;
