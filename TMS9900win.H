@@ -29,22 +29,22 @@
 #define GROM_START 0x0000
 #define GROM_SIZE (3* 0x2000)    // in effetti 3 da 0x1800.. v. sotto
 
-#define GROM_SIZE2 (0x8000)    // TI extended BASIC
+#define GROM_SIZE2 (0x8000)    // TI extended BASIC, demonstration
 #define ROM_START2 0x6000
 #define ROM_SIZE2 0x2000
 
 //#define GROM_SIZE2 (0x4000)    // TI star trek
-#define GROM_SIZE2 (0x2000)    // TI Assembler, invaders
+#define GROM_SIZE2 (0x2000)    // TI Assembler, invaders, centipede, pacman?
 #define ROM_START2 0x6000
 #define ROM_SIZE2 0x2000
 
 
 #define MIN_RASTER 0        // 
-#define MAX_RASTER 255
 #define HORIZ_SIZE 256      // o 
 #define VERT_SIZE 192
-#define HORIZ_OFFSCREEN 0
-#define VERT_OFFSCREEN 0      // 
+#define HORIZ_OFFSCREEN 16
+#define VERT_OFFSCREEN 16      // 
+#define MAX_RASTER ((VERT_SIZE+VERT_OFFSCREEN*2)-1)
 #define VIDEORAM_SIZE ((HORIZ_SIZE+HORIZ_OFFSCREEN*2)*(VERT_SIZE+VERT_OFFSCREEN*2))/2
 
 
@@ -144,7 +144,7 @@ union RESULT {
 #define TMS_R1_SPRITE_16          0x02
 #define TMS_R1_SPRITE_MAG1        0x00
 #define TMS_R1_SPRITE_MAG2        0x01
-#define LAST_SPRITE_YPOS	        0xC0		// dice 0xBE  https://www.unige.ch/medecine/nouspikel/ti99/tms9918a.htm#Sprites
+#define LAST_SPRITE_YPOS	        0xD0		// dice 0xBE  https://www.unige.ch/medecine/nouspikel/ti99/tms9918a.htm#Sprites  o anche C0... cmq pare che a 300, primo attr, ci sia D0
 
 #define TMS_DEFAULT_VRAM_NAME_ADDRESS          0x0000		// qua boh, forse 0
 #define TMS_DEFAULT_VRAM_COLOR_ADDRESS         0x0300
@@ -192,9 +192,19 @@ LRESULT CALLBACK Dump0(HWND, UINT, WPARAM, LPARAM);
 LRESULT CALLBACK Dump1(HWND, UINT, WPARAM, LPARAM);
 BOOL PlayResource(LPSTR lpName,BOOL bStop);
 typedef uint16_t (*generator_type)(float, uint8_t, uint16_t, uint8_t);
+struct _PLAYTONE_INFO {
+	float nSeconds;
+	generator_type signal;
+	uint16_t frequency;
+	uint32_t samplesPerSecond;
+	uint8_t volume;
+	uint8_t allocated;
+	};
 uint16_t sine_generator(float timeInSeconds, uint8_t channel, uint16_t context);
 uint16_t triangle_generator(float timeInSeconds, uint8_t channel, uint16_t context);
+uint16_t square_generator(float timeInSeconds, uint8_t channel, uint16_t context);
 MMRESULT playTone(float nSeconds, generator_type signal, uint16_t context, uint32_t samplesPerSecond, uint8_t volume, uint8_t bWait);
+int Disassemble(const WORD *src,HFILE f,char *dest,DWORD len,WORD pcaddr,BYTE opzioni);
 int decodeKBD(int, long, BOOL);
 int UpdateScreen(HDC,SWORD,SWORD);
 
@@ -250,7 +260,7 @@ https://post.bytes.com/forum/topic/c/176274-binary-constant-macros
 //https://en.wikipedia.org/wiki/TMS9900
 #define WORKING_REG_INDEX (Pipe1 & 0xf)
 #define GET_REG(q) (MAKEWORD(regs->r[q].b.h,regs->r[q].b.l))      // 
-#define GET_WORKING_REG() GET_REG(workingRegIndex)      // 
+#define GET_WORKING_REG_S() GET_REG(workingRegIndex)      // 
 #define SET_REG(q,n) {regs->r[q].b.l=HIBYTE(n);regs->r[q].b.h=LOBYTE(n);}      // 
 #define SET_WORKING_REG(n) SET_REG(workingRegIndex,n);
 #define WORKING_TS ((Pipe1 >> 4) & B8(11))
@@ -260,128 +270,268 @@ https://post.bytes.com/forum/topic/c/176274-binary-constant-macros
 #define REGISTER_SYMBOLIC_INDEXED 2
 #define REGISTER_INDIRECT_AUTOINCREMENT 3
 #define WORKING_REG2_INDEX ((Pipe1 >> 6) & 0xf)
-#define GET_WORKING_REG2() GET_REG(workingReg2Index)      // 
+#define GET_WORKING_REG_D() GET_REG(workingReg2Index)      // 
 #define SET_WORKING_REG2(n) SET_REG(workingReg2Index,n);
 
 // USARE, MA OCCHIO!!  ci sono le piccole differenze con getPipe e pc+=2, e anche autoincrement
-#define COMPUTE_SOURCE \
+// mancano solo + alcune 8bit
+#define COMPUTE_SOURCE_NOPIPE(a) \
   switch(workingTS) {\
     case REGISTER_DIRECT:\
-      res1.x=GET_WORKING_REG();\
+      res##a##.x=GET_WORKING_REG_S();\
       break;\
     case REGISTER_INDIRECT:\
-      res1.x=GetIntValue(GET_WORKING_REG());\
+      res##a##.x=GetIntValue(GET_WORKING_REG_S());\
       break;\
     case REGISTER_SYMBOLIC_INDEXED:\
       if(workingRegIndex)\
-        res1.x=GetIntValue(GET_WORKING_REG()+(int16_t)Pipe2.x);\
+        res##a##.x=GetIntValue((uint16_t)(GET_WORKING_REG_S()+(int16_t)Pipe2.x));\
       else\
-        res1.x=GetIntValue(Pipe2.x);\
-      /*GetPipe(_pc);*/\
+        res##a##.x=GetIntValue(Pipe2.x);\
       _pc+=2;\
       break;\
     case REGISTER_INDIRECT_AUTOINCREMENT:\
-      res1.x=GetIntValue(GET_WORKING_REG());\
-      SET_WORKING_REG(GET_WORKING_REG()+2);\
+      res##a##.x=GetIntValue(GET_WORKING_REG_S());\
+      SET_WORKING_REG(GET_WORKING_REG_S()+2);\
+      break;\
+    }
+#define COMPUTE_SOURCE_PIPE(a) \
+  switch(workingTS) {\
+    case REGISTER_DIRECT:\
+      res##a##.x=GET_WORKING_REG_S();\
+      break;\
+    case REGISTER_INDIRECT:\
+      res##a##.x=GetIntValue(GET_WORKING_REG_S());\
+      break;\
+    case REGISTER_SYMBOLIC_INDEXED:\
+      if(workingRegIndex)\
+        res##a##.x=GetIntValue((uint16_t)(GET_WORKING_REG_S()+(int16_t)Pipe2.x));\
+      else\
+        res##a##.x=GetIntValue(Pipe2.x);\
+      GetPipe(_pc);\
+      _pc+=2;\
+      break;\
+    case REGISTER_INDIRECT_AUTOINCREMENT:\
+      res##a##.x=GetIntValue(GET_WORKING_REG_S());\
+      SET_WORKING_REG(GET_WORKING_REG_S()+2);\
       break;\
     }
 #define COMPUTE_SOURCE2 \
   switch(workingTD) {\
     case REGISTER_DIRECT:\
-      res2.x=GET_WORKING_REG2();\
+      res2.x=GET_WORKING_REG_D();\
       break;\
     case REGISTER_INDIRECT:\
-      res2.x=GetIntValue(GET_WORKING_REG2());\
+      res2.x=GetIntValue(GET_WORKING_REG_D());\
       break;\
     case REGISTER_SYMBOLIC_INDEXED:\
       if(workingReg2Index)\
-        res2.x=GetIntValue(GET_WORKING_REG2()+(int16_t)Pipe2.x);\
+        res2.x=GetIntValue((uint16_t)(GET_WORKING_REG_D()+(int16_t)Pipe2.x));\
       else\
         res2.x=GetIntValue(Pipe2.x);\
       _pc+=2;\
       break;\
     case REGISTER_INDIRECT_AUTOINCREMENT:\
-      res2.x=GetIntValue(GET_WORKING_REG2());\
+      res2.x=GetIntValue(GET_WORKING_REG_D());\
+      SET_WORKING_REG2(GET_WORKING_REG_D()+2);\
       break;\
     }
-#define COMPUTE_DEST \
+#define COMPUTE_SOURCE2_NOINC \
+  switch(workingTD) {\
+    case REGISTER_DIRECT:\
+      res2.x=GET_WORKING_REG_D();\
+      break;\
+    case REGISTER_INDIRECT:\
+      res2.x=GetIntValue(GET_WORKING_REG_D());\
+      break;\
+    case REGISTER_SYMBOLIC_INDEXED:\
+      if(workingReg2Index)\
+        res2.x=GetIntValue((uint16_t)(GET_WORKING_REG_D()+(int16_t)Pipe2.x));\
+      else\
+        res2.x=GetIntValue(Pipe2.x);\
+      _pc+=2;\
+      break;\
+    case REGISTER_INDIRECT_AUTOINCREMENT:\
+      res2.x=GetIntValue(GET_WORKING_REG_D());\
+      break;\
+    }
+#define COMPUTE_SOURCE_NOPC_NOINC(a) \
+  switch(workingTS) {\
+    case REGISTER_DIRECT:\
+      res##a##.x=GET_WORKING_REG_S();\
+      break;\
+    case REGISTER_INDIRECT:\
+      res##a##.x=GetIntValue(GET_WORKING_REG_S());\
+      break;\
+    case REGISTER_SYMBOLIC_INDEXED:\
+      if(workingRegIndex)\
+        res##a##.x=GetIntValue((uint16_t)(GET_WORKING_REG_S()+(int16_t)Pipe2.x));\
+      else\
+        res##a##.x=GetIntValue(Pipe2.x);\
+      break;\
+    case REGISTER_INDIRECT_AUTOINCREMENT:\
+      res##a##.x=GetIntValue(GET_WORKING_REG_S());\
+      break;\
+    }
+#define COMPUTE_SOURCE8_PIPE(a) \
+  switch(workingTS) {\
+    case REGISTER_DIRECT:\
+      res##a##.b.l=HIBYTE(GET_WORKING_REG_S());\
+      break;\
+    case REGISTER_INDIRECT:\
+      res##a##.b.l=GetValue(GET_WORKING_REG_S());\
+      break;\
+    case REGISTER_SYMBOLIC_INDEXED:\
+      if(workingRegIndex)\
+        res##a##.b.l=GetValue((uint16_t)(GET_WORKING_REG_S()+(int16_t)Pipe2.x));\
+      else\
+        res##a##.b.l=GetValue(Pipe2.x);\
+      GetPipe(_pc);\
+      _pc+=2;\
+      break;\
+    case REGISTER_INDIRECT_AUTOINCREMENT:\
+      res##a##.b.l=GetValue(GET_WORKING_REG_S());\
+      SET_WORKING_REG(GET_WORKING_REG_S()+1);\
+      break;\
+    }
+#define COMPUTE_SOURCE82(a) \
+  switch(workingTD) {\
+    case REGISTER_DIRECT:\
+      res##a##.b.l=HIBYTE(GET_WORKING_REG_D());\
+      break;\
+    case REGISTER_INDIRECT:\
+      res##a##.b.l=GetValue(GET_WORKING_REG_D());\
+      break;\
+    case REGISTER_SYMBOLIC_INDEXED:\
+      if(workingReg2Index)\
+        res##a##.b.l=GetValue(GET_WORKING_REG_D()+(int16_t)Pipe2.x);\
+      else\
+        res##a##.b.l=GetValue(Pipe2.x);\
+      _pc+=2;\
+      break;\
+    case REGISTER_INDIRECT_AUTOINCREMENT:\
+      res##a##.b.l=GetValue(GET_WORKING_REG_D());\
+      SET_WORKING_REG2(GET_WORKING_REG_D()+1);\
+      break;\
+    }
+#define COMPUTE_SOURCE82_NOPC_NOINC(a) \
+  switch(workingTD) {\
+    case REGISTER_DIRECT:\
+      res##a##.b.l=HIBYTE(GET_WORKING_REG_D());\
+      break;\
+    case REGISTER_INDIRECT:\
+      res##a##.b.l=GetValue(GET_WORKING_REG_D());\
+      break;\
+    case REGISTER_SYMBOLIC_INDEXED:\
+      if(workingReg2Index)\
+        res##a##.b.l=GetValue(GET_WORKING_REG_D()+(int16_t)Pipe2.x);\
+      else\
+        res##a##.b.l=GetValue(Pipe2.x);\
+      break;\
+    case REGISTER_INDIRECT_AUTOINCREMENT:\
+      res##a##.b.l=GetValue(GET_WORKING_REG_D());\
+      break;\
+    }
+#define COMPUTE_SOURCE_BRANCH \
+  switch(workingTS) {\
+    case REGISTER_DIRECT:\
+      res3.x=GET_WORKING_REG_S();		/* forse non c'è...*/\
+      break;\
+    case REGISTER_INDIRECT:\
+/* BOH no... tipo B  *R5                  res3.x=GetIntValue(WORKING_REG);*/\
+      res3.x=GET_WORKING_REG_S();\
+      break;\
+    case REGISTER_SYMBOLIC_INDEXED:\
+      if(workingRegIndex)\
+        res3.x=GET_WORKING_REG_S()+(int16_t)Pipe2.x;\
+      else\
+        res3.x=Pipe2.x;\
+      _pc+=2;/*non servirebbe in B ma ok...*/\
+      break;\
+    case REGISTER_INDIRECT_AUTOINCREMENT:\
+      res3.x=GetIntValue(GET_WORKING_REG_S());/* BOH...*/\
+      SET_WORKING_REG(GET_WORKING_REG_S()+2);\
+      break;\
+    }
+
+#define STORE_DEST_16 \
   switch(workingTD) {\
     case REGISTER_DIRECT:\
       SET_WORKING_REG2(res3.x);\
       break;\
     case REGISTER_INDIRECT:\
-      PutIntValue(GET_WORKING_REG2(),res3.x);\
+      PutIntValue(GET_WORKING_REG_D(),res3.x);\
       break;\
     case REGISTER_SYMBOLIC_INDEXED:\
       if(workingReg2Index)\
-        PutIntValue(GET_WORKING_REG2()+(int16_t)Pipe2.x,res3.x);\
+        PutIntValue((uint16_t)(GET_WORKING_REG_D()+(int16_t)Pipe2.x),res3.x);\
       else\
         PutIntValue(Pipe2.x,res3.x);\
       _pc+=2;\
       break;\
     case REGISTER_INDIRECT_AUTOINCREMENT:\
-      PutIntValue(GET_WORKING_REG2(),res3.x);\
-      SET_WORKING_REG2(GET_WORKING_REG2()+2);\
+      PutIntValue(GET_WORKING_REG_D(),res3.x);\
+      SET_WORKING_REG2(GET_WORKING_REG_D()+2);\
       break;\
     }
-#define COMPUTE_SOURCE8 \
-  switch(workingTS) {\
-    case REGISTER_DIRECT:\
-      res1.b.l=HIBYTE(GET_WORKING_REG());\
-      break;\
-    case REGISTER_INDIRECT:\
-      res1.b.l=GetValue(GET_WORKING_REG());\
-      break;\
-    case REGISTER_SYMBOLIC_INDEXED:\
-      if(workingRegIndex)\
-        res1.b.l=GetValue(GET_WORKING_REG()+(int16_t)Pipe2.x);\
-      else\
-        res1.b.l=GetValue(Pipe2.x);\
-      /*GetPipe(_pc);*/\
-      _pc+=2;\
-      break;\
-    case REGISTER_INDIRECT_AUTOINCREMENT:\
-      res1.b.l=GetValue(GET_WORKING_REG());\
-      SET_WORKING_REG(GET_WORKING_REG()+1);\
-      break;\
-    }
-#define COMPUTE_SOURCE82 \
+#define STORE_DEST_8 \
   switch(workingTD) {\
     case REGISTER_DIRECT:\
-      res2.b.l=HIBYTE(GET_WORKING_REG2());\
+      SET_WORKING_REG2(MAKEWORD(LOBYTE(GET_WORKING_REG_D()),res3.b.l));	/* se registro, va in MSB*/ \
       break;\
     case REGISTER_INDIRECT:\
-      res2.b.l=GetValue(GET_WORKING_REG2());\
+      PutValue(GET_WORKING_REG_D(),res3.b.l);	/* v. di là, big-endian circa*/ \
       break;\
     case REGISTER_SYMBOLIC_INDEXED:\
       if(workingReg2Index)\
-        res2.b.l=GetValue(GET_WORKING_REG2()+(int16_t)Pipe2.x);\
-      else\
-        res2.b.l=GetValue(Pipe2.x);\
-      _pc+=2;\
-      break;\
-    case REGISTER_INDIRECT_AUTOINCREMENT:\
-      res2.b.l=GetValue(GET_WORKING_REG2());\
-      break;\
-    }
-#define COMPUTE_DEST8 \
-  switch(workingTD) {\
-    case REGISTER_DIRECT:\
-      SET_WORKING_REG2(MAKEWORD(LOBYTE(GET_WORKING_REG2()),res3.b.l));	/* se registro, va in MSB*/ \
-      break;\
-    case REGISTER_INDIRECT:\
-      PutValue(GET_WORKING_REG2(),res3.b.l);\
-      break;\
-    case REGISTER_SYMBOLIC_INDEXED:\
-      if(workingReg2Index)\
-        PutValue(GET_WORKING_REG2()+(int16_t)Pipe2.x,res3.b.l);\
+        PutValue((uint16_t)(GET_WORKING_REG_D()+(int16_t)Pipe2.x),res3.b.l);\
       else\
         PutValue(Pipe2.x,res3.b.l);\
       _pc+=2;\
       break;\
     case REGISTER_INDIRECT_AUTOINCREMENT:\
-      PutValue(GET_WORKING_REG2(),res3.b.l);\
-      SET_WORKING_REG2(GET_WORKING_REG2()+1);\
+      PutValue(GET_WORKING_REG_D(),res3.b.l);\
+      SET_WORKING_REG2(GET_WORKING_REG_D()+1);\
       break;\
     }
 
+#define STORE_SOURCE_16 \
+  switch(workingTS) {\
+    case REGISTER_DIRECT:\
+      SET_WORKING_REG(res3.x);\
+      break;\
+    case REGISTER_INDIRECT:\
+      PutIntValue(GET_WORKING_REG_S(),res3.x);\
+      break;\
+    case REGISTER_SYMBOLIC_INDEXED:\
+      if(workingRegIndex)\
+        PutIntValue((uint16_t)(GET_WORKING_REG_S()+(int16_t)Pipe2.x),res3.x);\
+      else\
+        PutIntValue(Pipe2.x,res3.x);\
+      _pc+=2;\
+      break;\
+    case REGISTER_INDIRECT_AUTOINCREMENT:\
+      PutIntValue(GET_WORKING_REG_S(),res3.x);\
+      SET_WORKING_REG(GET_WORKING_REG_S()+2);\
+      break;\
+    }
+#define STORE_SOURCE_8 \
+  switch(workingTS) {\
+    case REGISTER_DIRECT:\
+      SET_WORKING_REG(res3.x);\
+      break;\
+    case REGISTER_INDIRECT:\
+      PutIntValue(GET_WORKING_REG_S(),res3.x);\
+      break;\
+    case REGISTER_SYMBOLIC_INDEXED:\
+      if(workingRegIndex)\
+        PutIntValue((uint16_t)(GET_WORKING_REG_S()+(int16_t)Pipe2.x),res3.x);\
+      else\
+        PutIntValue(Pipe2.x,res3.x);\
+      _pc+=2;\
+      break;\
+    case REGISTER_INDIRECT_AUTOINCREMENT:\
+      PutIntValue(GET_WORKING_REG_S(),res3.x);\
+      SET_WORKING_REG(GET_WORKING_REG_S()+2);\
+      break;\
+    }

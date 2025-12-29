@@ -174,13 +174,13 @@ static char *outputUnknown(char *d,WORD n) {
 int Disassemble(const WORD *src,HFILE f,char *dest,DWORD len,WORD pcaddr,BYTE opzioni) {
 	// opzioni: b0 addbytes, b1 addPC, b2 numeri dec in commenti
 	const WORD *oldsrc;
-	const char *r,*r2;
+	const char *r;
 	WORD Pipe1;
 	union PIPE Pipe2,Pipe3;
   register uint16_t i;
 	BYTE fExit=0;
   uint8_t workingTS,workingTD,workingRegIndex,workingReg2Index;
-	char S1[64],S2[64];
+	char S1[64];
 
 
 	Opzioni=opzioni;
@@ -281,7 +281,7 @@ int Disassemble(const WORD *src,HFILE f,char *dest,DWORD len,WORD pcaddr,BYTE op
 				switch(Pipe1 & B16(11111111,11110000)) {
 					case B16(00000011,00000000):		// LIMI
 						outputText(dest,"LIMI ");
-						outputWord(dest,Pipe2.x & 0xf);
+						outputWord(dest,(uint16_t)(Pipe2.x & 0xf));
 						src++;
 						break;
 
@@ -319,9 +319,13 @@ int Disassemble(const WORD *src,HFILE f,char *dest,DWORD len,WORD pcaddr,BYTE op
 							src++;
 						break;
 					case B16(00000100,01000000):		// B
-						outputText(dest,"B ");
-						r=getAddressing(workingTS,workingRegIndex,Pipe2.x);
-						outputText(dest,r);
+						if(workingTS==REGISTER_INDIRECT && workingRegIndex==11)
+							outputText(dest,"RT");			// :-)
+						else {
+							outputText(dest,"B ");
+							r=getAddressing(workingTS,workingRegIndex,Pipe2.x);
+							outputText(dest,r);
+							}
 						if(workingTS==REGISTER_SYMBOLIC_INDEXED)
 							src++;
 						break;
@@ -451,7 +455,7 @@ int Disassemble(const WORD *src,HFILE f,char *dest,DWORD len,WORD pcaddr,BYTE op
 							outputText(dest,S1);
 							}
 						else {
-							outputByte(dest,LOBYTE(Pipe1) >> 4);
+							outputByte(dest,(uint8_t)(LOBYTE(Pipe1) >> 4));
 							}
 						break;
 					case B16(00001001,00000000):		// SRL
@@ -466,7 +470,7 @@ int Disassemble(const WORD *src,HFILE f,char *dest,DWORD len,WORD pcaddr,BYTE op
 							outputText(dest,S1);
 							}
 						else {
-							outputByte(dest,LOBYTE(Pipe1) >> 4);
+							outputByte(dest,(uint8_t)(LOBYTE(Pipe1) >> 4));
 							}
 						break;
 					case B16(00001010,00000000):		// SLA
@@ -481,7 +485,7 @@ int Disassemble(const WORD *src,HFILE f,char *dest,DWORD len,WORD pcaddr,BYTE op
 							outputText(dest,S1);
 							}
 						else {
-							outputByte(dest,LOBYTE(Pipe1) >> 4);
+							outputByte(dest,(uint8_t)(LOBYTE(Pipe1) >> 4));
 							}
 						break;
 					case B16(00001011,00000000):		// SRC
@@ -496,7 +500,7 @@ int Disassemble(const WORD *src,HFILE f,char *dest,DWORD len,WORD pcaddr,BYTE op
 							outputText(dest,S1);
 							}
 						else {
-							outputByte(dest,LOBYTE(Pipe1) >> 4);
+							outputByte(dest,(uint8_t)(LOBYTE(Pipe1) >> 4));
 							}
 						break;
 					default:
@@ -508,67 +512,71 @@ int Disassemble(const WORD *src,HFILE f,char *dest,DWORD len,WORD pcaddr,BYTE op
 		else if((Pipe1 & B16(11110000,00000000)) == B16(00010000,00000000)) {
 			switch(Pipe1 & B16(11111111,00000000)) {
 				case B16(00010000,00000000):		// JMP
-					outputText(dest,"JMP ");
-					outputWord(dest,pcaddr+(int8_t)(LOBYTE(Pipe1)*2)+2);
+					if(Pipe1 == 0x1000)
+						outputText(dest,"NOP");			// è così! ossia jmp +0
+					else {
+						outputText(dest,"JMP ");
+						outputWord(dest,(uint16_t)(pcaddr+(int8_t)(LOBYTE(Pipe1)*2)+2));
+						}
 					break;
 				case B16(00010001,00000000):		// JLT
 					outputText(dest,"JLT ");
-					outputWord(dest,pcaddr+(int8_t)(LOBYTE(Pipe1)*2)+2);
+					outputWord(dest,(uint16_t)(pcaddr+(int8_t)(LOBYTE(Pipe1)*2)+2));
 					src++;
 					break;
 				case B16(00010010,00000000):		// JLE
 					outputText(dest,"JLE ");
-					outputWord(dest,pcaddr+(int8_t)(LOBYTE(Pipe1)*2)+2);
+					outputWord(dest,(uint16_t)(pcaddr+(int8_t)(LOBYTE(Pipe1)*2)+2));
 					src++;
 					break;
 				case B16(00010011,00000000):		// JEQ
 					outputText(dest,"JEQ ");
-					outputWord(dest,pcaddr+(int8_t)(LOBYTE(Pipe1)*2)+2);
+					outputWord(dest,(uint16_t)(pcaddr+(int8_t)(LOBYTE(Pipe1)*2)+2));
 					src++;
 					break;
 				case B16(00010100,00000000):		// JHE
 					outputText(dest,"JHE ");
-					outputWord(dest,pcaddr+(int8_t)(LOBYTE(Pipe1)*2)+2);
+					outputWord(dest,(uint16_t)(pcaddr+(int8_t)(LOBYTE(Pipe1)*2)+2));
 					src++;
 					break;
 				case B16(00010101,00000000):		// JGT
 					outputText(dest,"JGT ");
-					outputWord(dest,pcaddr+(int8_t)(LOBYTE(Pipe1)*2)+2);
+					outputWord(dest,(uint16_t)(pcaddr+(int8_t)(LOBYTE(Pipe1)*2)+2));
 					src++;
 					break;
 				case B16(00010110,00000000):		// JNE
 					outputText(dest,"JNE ");
-					outputWord(dest,pcaddr+(int8_t)(LOBYTE(Pipe1)*2)+2);
+					outputWord(dest,(uint16_t)(pcaddr+(int8_t)(LOBYTE(Pipe1)*2)+2));
 					src++;
 					break;
 				case B16(00010111,00000000):		// JNC
 					outputText(dest,"JNC ");
-					outputWord(dest,pcaddr+(int8_t)(LOBYTE(Pipe1)*2)+2);
+					outputWord(dest,(uint16_t)(pcaddr+(int8_t)(LOBYTE(Pipe1)*2)+2));
 					src++;
 					break;
 				case B16(00011000,00000000):		// JOC
 					outputText(dest,"JOC ");
-					outputWord(dest,pcaddr+(int8_t)(LOBYTE(Pipe1)*2)+2);
+					outputWord(dest,(uint16_t)(pcaddr+(int8_t)(LOBYTE(Pipe1)*2)+2));
 					src++;
 					break;
 				case B16(00011001,00000000):		// JNO
 					outputText(dest,"JNO ");
-					outputWord(dest,pcaddr+(int8_t)(LOBYTE(Pipe1)*2)+2);
+					outputWord(dest,(uint16_t)(pcaddr+(int8_t)(LOBYTE(Pipe1)*2)+2));
 					src++;
 					break;
 				case B16(00011010,00000000):		// JL
 					outputText(dest,"JL ");
-					outputWord(dest,pcaddr+(int8_t)(LOBYTE(Pipe1)*2)+2);
+					outputWord(dest,(uint16_t)(pcaddr+(int8_t)(LOBYTE(Pipe1)*2)+2));
 					src++;
 					break;
 				case B16(00011011,00000000):		// JH
 					outputText(dest,"JH ");
-					outputWord(dest,pcaddr+(int8_t)(LOBYTE(Pipe1)*2)+2);
+					outputWord(dest,(uint16_t)(pcaddr+(int8_t)(LOBYTE(Pipe1)*2)+2));
 					src++;
 					break;
 				case B16(00011100,00000000):		// JOP
 					outputText(dest,"JOP ");
-					outputWord(dest,pcaddr+(int8_t)(LOBYTE(Pipe1)*2)+2);
+					outputWord(dest,(uint16_t)(pcaddr+(int8_t)(LOBYTE(Pipe1)*2)+2));
 					src++;
 					break;
 				case B16(00011101,00000000):		// SBO
@@ -598,7 +606,7 @@ int Disassemble(const WORD *src,HFILE f,char *dest,DWORD len,WORD pcaddr,BYTE op
 					if(workingTS==REGISTER_SYMBOLIC_INDEXED)
 						src++;
 					outputComma(dest);
-					r=getRegister((BYTE)workingTD);
+					r=getRegister((BYTE)workingReg2Index);
 					strcpy(S1,r);
 					outputText(dest,S1);
 					break;
@@ -609,7 +617,7 @@ int Disassemble(const WORD *src,HFILE f,char *dest,DWORD len,WORD pcaddr,BYTE op
 					if(workingTS==REGISTER_SYMBOLIC_INDEXED)
 						src++;
 					outputComma(dest);
-					r=getRegister((BYTE)workingTD);
+					r=getRegister((BYTE)workingReg2Index);
 					strcpy(S1,r);
 					outputText(dest,S1);
 					break;
@@ -620,7 +628,7 @@ int Disassemble(const WORD *src,HFILE f,char *dest,DWORD len,WORD pcaddr,BYTE op
 					if(workingTS==REGISTER_SYMBOLIC_INDEXED)
 						src++;
 					outputComma(dest);
-					r=getRegister((BYTE)workingTD);
+					r=getRegister((BYTE)workingReg2Index);
 					strcpy(S1,r);
 					outputText(dest,S1);
 					break;
@@ -631,7 +639,7 @@ int Disassemble(const WORD *src,HFILE f,char *dest,DWORD len,WORD pcaddr,BYTE op
 					if(workingTS==REGISTER_SYMBOLIC_INDEXED)
 						src++;
 					outputComma(dest);
-					r=getRegister((BYTE)workingTD);
+					r=getRegister((BYTE)workingReg2Index);
 					strcpy(S1,r);
 					outputText(dest,S1);
 					break;
@@ -649,7 +657,7 @@ int Disassemble(const WORD *src,HFILE f,char *dest,DWORD len,WORD pcaddr,BYTE op
 					if(workingTS==REGISTER_SYMBOLIC_INDEXED)
 						src++;
 					outputComma(dest);
-					outputByte(dest,(Pipe1 >> 6) & 0xf);
+					outputByte(dest,(uint8_t)((Pipe1 >> 6) & 0xf));
 					break;
 				case B16(00110100,00000000):		// STCR
 					outputText(dest,"STCR ");
@@ -658,7 +666,7 @@ int Disassemble(const WORD *src,HFILE f,char *dest,DWORD len,WORD pcaddr,BYTE op
 					if(workingTS==REGISTER_SYMBOLIC_INDEXED)
 						src++;
 					outputComma(dest);
-					outputByte(dest,(Pipe1 >> 6) & 0xf);
+					outputByte(dest,(uint8_t)((Pipe1 >> 6) & 0xf));
 					break;
 				case B16(00111000,00000000):		// MPY
 					outputText(dest,"MPY ");
@@ -900,7 +908,7 @@ unknown:
 
 		} while(!fExit);
 
-
+	return 1;
 	}
 
 

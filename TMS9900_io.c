@@ -99,7 +99,7 @@ extern HFILE spoolFile;
 						break;
 					case 0x02:		// VDP read status register
 						i=TMS9918RegS;
-						TMS9918RegS &= 0x7f;
+						TMS9918RegS &= ~B8(10100000);			// pulire anche flag sprite??
 						TMS9918WriteStage=0;
 						break;
 					}
@@ -420,17 +420,16 @@ void _fastcall PutValue(uint16_t t,uint8_t t1) {
 							}
 						}
 					else {				// 2° parte freq
-						if(t1==0x20)		// patch brutale! sarebbe il secondo parametro: bf df ff  80 05 92
+/*						if(t1==0x20)		// patch brutale! sarebbe il secondo parametro: bf df ff  80 05 92
 							PlayResource(MAKEINTRESOURCE(IDR_WAVE_TONE1),FALSE);
-							
 						else if(t1==0x05)
-							PlayResource(MAKEINTRESOURCE(IDR_WAVE_TONE2),FALSE);
+							PlayResource(MAKEINTRESOURCE(IDR_WAVE_TONE2),FALSE);*/
 							
 						TMSfreq[chan] |= (t1 & 0x3f) << 4;
-/*						if(TMSfreq[chan])			// safety
-							playTone(0.3, sine_generator, 223700L/4/TMSfreq[chan], 22050, 
-								100-(TMSvolume[chan]*6), TRUE);		// diceva /2 ... SISTEMARE PLAY è ciucca di *2
-								*/
+						if(TMSfreq[chan])			// safety
+							playTone(0.5, sine_generator, 223700L/4/TMSfreq[chan], 22050, 
+								100-(TMSvolume[chan]*6), FALSE);		// diceva /2 ... SISTEMARE PLAY è ciucca di *2
+								
 						}
 /*
 Generator 	Frequency 	Volume
@@ -443,11 +442,11 @@ Frequency = 111860.8 Hz / xyz
 Volume v:  +1 = -2 dB (>F = off)
 */
 #ifdef _DEBUG
-				{char myBuf[128];
+/*				{char myBuf[128];
 extern HFILE spoolFile;
 					wsprintf(myBuf,"sound write: %02x\n",t1);
 				_lwrite(spoolFile,myBuf,strlen(myBuf));
-				}
+				}*/
 #endif
 	        break;
 				}
@@ -753,8 +752,7 @@ BOOL PlayResource(LPSTR lpName,BOOL bStop) {
 	}
 
 
-MMRESULT playTone(float nSeconds, generator_type signal, uint16_t context, uint32_t samplesPerSecond, 
-									uint8_t volume,uint8_t bWait) {
+MMRESULT WINAPI subPlayTone(LPVOID *lppi) {
 	// https://stackoverflow.com/questions/5814869/playing-an-arbitrary-sound-on-windows
   UINT timePeriod = 1;
 	size_t i;
@@ -762,24 +760,25 @@ MMRESULT playTone(float nSeconds, generator_type signal, uint16_t context, uint3
   /*const*/ size_t nBuffer;
   uint8_t *buffer;
 
+	struct _PLAYTONE_INFO *pi=(struct _PLAYTONE_INFO*)lppi;
+
   MMRESULT mmresult = MMSYSERR_NOERROR;
   WAVEFORMATEX waveFormat = {0};
   waveFormat.cbSize = 0;
   waveFormat.wFormatTag = WAVE_FORMAT_PCM /*WAVE_FORMAT_IEEE_FLOAT*/;
   waveFormat.wBitsPerSample = CHAR_BIT*2;  // ?? CHAR_BIT * sizeof(buffer[0]);
   waveFormat.nChannels = 2;
-  waveFormat.nSamplesPerSec = samplesPerSecond;
+  waveFormat.nSamplesPerSec = pi->samplesPerSecond;
   waveFormat.nBlockAlign = waveFormat.nChannels * waveFormat.wBitsPerSample / CHAR_BIT;
   waveFormat.nAvgBytesPerSec = waveFormat.nSamplesPerSec * waveFormat.nBlockAlign;
-  nBuffer = (size_t)(nSeconds * waveFormat.nChannels * waveFormat.nSamplesPerSec);
+  nBuffer = (size_t)(pi->nSeconds * (waveFormat.wBitsPerSample/ CHAR_BIT) * waveFormat.nSamplesPerSec);
 
-
-  buffer = (uint16_t *)calloc(nBuffer, sizeof(*buffer));
+  buffer = (uint8_t *)calloc(nBuffer, sizeof(*buffer));
   __try {
     HWAVEOUT hWavOut = NULL;
     for(i=0; i < nBuffer; i += waveFormat.nChannels)
       for(j=0; j < waveFormat.nChannels; j++)
-        buffer[i+j] = (*signal)((i+j) * nSeconds / nBuffer, j, context, volume);
+        buffer[i+j] = (*pi->signal)((i+j) * pi->nSeconds / nBuffer, j, pi->frequency, pi->volume);
     mmresult = waveOutOpen(&hWavOut, WAVE_MAPPER, &waveFormat, 0, 0, CALLBACK_NULL);
     if(mmresult == MMSYSERR_NOERROR) {
       __try {
@@ -793,8 +792,7 @@ MMRESULT playTone(float nSeconds, generator_type signal, uint16_t context, uint3
             __try {
               ULONG start = GetTickCount();
               mmresult = waveOutWrite(hWavOut, &hdr, sizeof(hdr));
-							if(bWait)			// ovviamente non va così... bisogna fare asincrona...
-								Sleep((ULONG)(1000 * nSeconds - (GetTickCount() - start)));
+							Sleep((ULONG)(1000 * pi->nSeconds - (GetTickCount() - start)));
               }
             __finally { 
 							waveOutUnprepareHeader(hWavOut, &hdr, sizeof(hdr)); }
@@ -812,7 +810,45 @@ MMRESULT playTone(float nSeconds, generator_type signal, uint16_t context, uint3
 	__finally { 
 		free(buffer); 
 		}
+	if(pi->allocated)
+		HeapFree(GetProcessHeap(), 0, pi);
+
   return mmresult;
+	}
+
+MMRESULT playTone(float nSeconds, generator_type signal, uint16_t context, uint32_t samplesPerSecond, 
+									uint8_t volume,uint8_t bWait) {
+	struct _PLAYTONE_INFO *pi;
+	DWORD dwThreadId;
+
+  pi=(struct _PLAYTONE_INFO*)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY,
+      sizeof(struct _PLAYTONE_INFO));
+
+/*				WaitForMultipleObjects(MAX_THREADS, hThreadArray, TRUE, INFINITE);
+
+        CloseHandle(hThread);
+				HeapFree(GetProcessHeap(), 0, pi);*/
+
+	pi->nSeconds=nSeconds;
+	pi->signal=signal;
+	pi->frequency=context;
+	pi->samplesPerSecond=samplesPerSecond;
+	pi->volume=volume;
+	pi->allocated=1;
+
+	if(bWait) {
+		subPlayTone(pi);
+		}
+	else {
+    HANDLE hThread = CreateThread( 
+        NULL,                   // default security attributes
+        0,                      // use default stack size  
+        subPlayTone,       // thread function name
+        pi,          // argument to thread function 
+        0,                      // use default creation flags 
+        &dwThreadId);   // returns the thread identifier
+		}
+
 	}
 
 // Triangle wave generator
@@ -830,7 +866,6 @@ uint16_t triangle_generator(float timeInSeconds, uint8_t channel, uint16_t conte
 			break;
     }
 	}
-
 // Sine tone generator
 uint16_t sine_generator(float timeInSeconds, uint8_t channel, uint16_t context) {
   const uint16_t frequency = context;
@@ -845,6 +880,21 @@ uint16_t sine_generator(float timeInSeconds, uint8_t channel, uint16_t context) 
 			break;
 		}
 	}
+// Square wave generator
+uint16_t square_generator(float timeInSeconds, uint8_t channel, uint16_t context) {
+  const uint16_t frequency = context;
+  const float angle = (float)(frequency * 2 * PI * timeInSeconds);
+
+  switch(channel) {
+    case 0: 
+			return sin(angle + 0 * PI / 2) > 0 ? 127 : -127;
+			break;
+    default:
+			return sin(angle + 1 * PI / 2) > 0 ? 127 : -127;
+			break;
+    }
+	}
+
 
 
 void initHW(void) {

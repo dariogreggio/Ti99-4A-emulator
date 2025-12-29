@@ -25,7 +25,7 @@ HANDLE hAccelTable;
 char szAppName[] = APPNAME; // The name of this application
 char INIFile[] = APPNAME".ini";
 char szTitle[]   = APPNAME; // The title bar text
-int AppXSize=HORIZ_SIZE*2+16,AppYSize=VERT_SIZE*2+12,AppYSizeR,YXRatio=1;		// così il rapporto è ok, ev. ingandire o rimpicciolire
+int AppXSize=(HORIZ_SIZE+2*HORIZ_OFFSCREEN)*2+16,AppYSize=(VERT_SIZE+VERT_OFFSCREEN*2)*1.8+12,AppYSizeR,YXRatio=1;		// così il rapporto è ok, ev. ingandire o rimpicciolire
 BOOL fExit,debug=0, doppiaDim;
 HWND ghWnd,hStatusWnd;
 HBRUSH hBrush;
@@ -76,7 +76,7 @@ extern const unsigned char TI994A_BIN_GROM0[],TI994A_BIN_GROM1[],TI994A_BIN_GROM
 	TI994AGROMData[],		/* prova... da classic99*/
 	TI994AGROMExtendedBASIC[],
 //	TI994AGROMExtendedBASIC_1[],TI994AGROMExtendedBASIC_2[],TI994AGROMExtendedBASIC_3[],TI994AGROMExtendedBASIC_4[],
-	TI994AGROMAssembler[],TI994AGROMCentipede[],TI994AGROMSpaceInvaders[],TI994AGROMStarTrek[],TI994AGROMQBert[],
+	TI994AGROMAssembler[],TI994AGROMCentipede[],TI994AGROMSpaceInvaders[],TI994AGROMStarTrek[],TI994AGROMQBert[],TI994AGROMPacman[],
 	TI994AGROMDemo[]
 	;
 
@@ -138,6 +138,7 @@ int UpdateScreen(HDC hDC,SWORD rowIni, SWORD rowFin) {
 	register int i;
 	UINT16 px,py;
 	int row1;
+	int x;
 	register BYTE *p1,*p2;
   BYTE ch1,ch2,color,color1,color0;
 	BYTE *pVideoRAM;
@@ -147,64 +148,81 @@ int UpdateScreen(HDC hDC,SWORD rowIni, SWORD rowFin) {
   WORD videoAddress=((WORD)(TMS9918Reg[2] & 0xf)) << 10;
   WORD colorAddress=((WORD)(TMS9918Reg[3])) << 6;
   WORD spriteAttrAddress=((WORD)(TMS9918Reg[5] & 0x7f)) << 7;
-  WORD spritePatternAddress=((WORD)(TMS9918Reg[5] & 0x7)) << 11;
+  WORD spritePatternAddress=((WORD)(TMS9918Reg[6] & 0x7)) << 11;
 
-  
-  if(!(TMS9918Reg[1] & B8(01000000))) {    // blanked
-    for(py=0; py<VERT_SIZE; py++) {   // bordo/sfondo
-			pVideoRAM=(BYTE*)&VideoRAM[0]+(py)*(((HORIZ_SIZE/2)+(HORIZ_OFFSCREEN*2)));
-      for(px=0; px<HORIZ_SIZE/2; px++)
-//        writedata16(graphColors[TMS9918Reg[7] & 0xf]);
+  if(!rowIni) {   // 
+//    setAddrWindow(0,0,_width,bordery/2);
+    for(py=0; py<VERT_OFFSCREEN; py++) {
+			pVideoRAM=(BYTE*)&VideoRAM[0]+py*(((HORIZ_SIZE+HORIZ_OFFSCREEN*2)/2));
+      for(px=0; px<((HORIZ_SIZE+HORIZ_OFFSCREEN*2)/2); px++)
 				*pVideoRAM++=((TMS9918Reg[7] & 0xf) << 4) | (TMS9918Reg[7] & 0xf);
-			}
-		goto do_plot;
+      }
     }
-  else if(rowIni>=0 && rowIni<192) {
-    
-		switch(videoMode) {
+  
+  if(rowIni>=VERT_OFFSCREEN && rowIni<VERT_SIZE+VERT_OFFSCREEN) {
+		if(!(TMS9918Reg[1] & B8(01000000))) {    // blanked
+			for(py=rowIni; py<rowFin; py++) {   // 
+				pVideoRAM=(BYTE*)&VideoRAM[0]+py*(((HORIZ_SIZE+HORIZ_OFFSCREEN*2)/2));
+				for(px=0; px<((HORIZ_SIZE+HORIZ_OFFSCREEN*2)/2); px++)
+	//        writedata16(graphColors[TMS9918Reg[7] & 0xf]);
+					*pVideoRAM++=((TMS9918Reg[7] & 0xf) << 4) | (TMS9918Reg[7] & 0xf);
+				}
+			}
+		else switch(videoMode) {
 			case 0:     // graphics 1
 				for(py=rowIni/8; py<rowFin/8; py++) {    // 192 
-					p2=((BYTE*)&TMSVideoRAM[videoAddress]) + (py*32 /*HORIZ_SIZE/8*/);
+					p2=((BYTE*)&TMSVideoRAM[videoAddress]) + ((py-VERT_OFFSCREEN/8)*HORIZ_SIZE/8);
 					for(row1=0; row1<8; row1++) {    // 192 linee(32 righe char) 
-						pVideoRAM=(BYTE*)&VideoRAM[0]+((py*8)+row1)*(((HORIZ_SIZE/2)+(HORIZ_OFFSCREEN*2)));
+						pVideoRAM=(BYTE*)&VideoRAM[0]+((py*8)+row1)*((((HORIZ_SIZE+HORIZ_OFFSCREEN*2)/2)));
+						for(px=0; px<HORIZ_OFFSCREEN/2; px++)
+							*pVideoRAM++=((TMS9918Reg[7] & 0xf) << 4) | (TMS9918Reg[7] & 0xf);
 						p1=p2;
 						for(px=0; px<HORIZ_SIZE/8; px++) {    // 256 pixel 
 							ch1=*p1++;
 							ch2=TMSVideoRAM[charAddress + (ch1*8) + (row1)];
 							color=TMSVideoRAM[colorAddress+ch1/8];
 							color1=color >> 4; color0=color & 0xf;
+							if(!color0)
+								color0=TMS9918Reg[7] & 0xf;
+							if(!color1)
+								color1=TMS9918Reg[7] & 0xf;
 
 							*pVideoRAM++=((ch2 & B8(10000000) ? color1 : color0) << 4) | (ch2 & B8(01000000) ? color1 : color0);
 							*pVideoRAM++=((ch2 & B8(00100000) ? color1 : color0) << 4) | (ch2 & B8(00010000) ? color1 : color0);
 							*pVideoRAM++=((ch2 & B8(00001000) ? color1 : color0) << 4) | (ch2 & B8(00000100) ? color1 : color0);
 							*pVideoRAM++=((ch2 & B8(00000010) ? color1 : color0) << 4) | (ch2 & B8(00000001) ? color1 : color0);
 							}
+						for(px=0; px<HORIZ_OFFSCREEN/2; px++)
+							*pVideoRAM++=((TMS9918Reg[7] & 0xf) << 4) | (TMS9918Reg[7] & 0xf);
 						}
 					}
 
 handle_sprites:
-				{ // OVVIAMENTE sarebbe meglio gestirli riga per riga...!
+				{ // (OVVIAMENTE sarebbe meglio gestirli riga per riga...!
 				struct SPRITE_ATTR *sa;
 				BYTE ssize=TMS9918Reg[1] & 2 ? 32 : 8,smag=TMS9918Reg[1] & 1 ? 16 : 8;
-				BYTE j;
-      
-				sa=((struct SPRITE_ATTR *)&TMSVideoRAM[spriteAttrAddress+(32-1)*sizeof(struct SPRITE_ATTR)]);
-				for(i=0; i<32; i++) {			// screen order inverso!
+				BYTE j2;
+				int8_t j,smax;
+				uint16_t sofs;
+
+				for(smax=0; smax<32; smax++) {			// screen order inverso per cui mi serve sapere da dove iniziare
+					sa=((struct SPRITE_ATTR *)&TMSVideoRAM[spriteAttrAddress+smax*sizeof(struct SPRITE_ATTR)]);
+					if(sa->ypos>=LAST_SPRITE_YPOS)
+						break;
+					}
+				smax--;
+
+				for(i=smax; i>=0; i--) {			// screen order inverso!
 					struct SPRITE_ATTR *sa2;
         
-					if(sa->ypos>=LAST_SPRITE_YPOS)
-						break;		// continue; se una è fuori schermo anche le successive spariscono!
-        
-					j=smag*(ssize==32 ? 2 : 1);
-					sa2=sa+1;
-					for(j=i+1; j<32; j++) {
-						if(sa2->ypos < LAST_SPRITE_YPOS) {
-            
-							if((sa2->ypos>=sa->ypos && sa2->ypos<=sa->ypos+j) &&
-								(sa2->xpos>=sa->xpos && sa2->xpos<=sa->xpos+j)) {
-								// controllare solo i pixel accesi, a 1!
-								TMS9918RegS |= B8(00100000);
-								}
+					sa=((struct SPRITE_ATTR *)&TMSVideoRAM[spriteAttrAddress+i*sizeof(struct SPRITE_ATTR)]);
+					j2=smag*(ssize==32 ? 2 : 1);
+					for(j=smax-1; j>=0; j--) {
+						sa2=((struct SPRITE_ATTR *)&TMSVideoRAM[spriteAttrAddress+j*sizeof(struct SPRITE_ATTR)]);
+						if((sa2->ypos>=sa->ypos && sa2->ypos<=sa->ypos+j2) &&
+							(sa2->xpos>=sa->xpos && sa2->xpos<=sa->xpos+j2)) {
+							// controllare solo i pixel accesi, a 1!
+							TMS9918RegS |= B8(00100000);
 							// poi ci sarebbe il flag 5 sprite per riga!
 							}
 						sa2++;
@@ -219,22 +237,42 @@ sa->name=i;//TEST!
 sa->xpos=timeGetTime()/8 /*40+i*4*/; sa->ypos=5+i*10;
 #endif
 
-					p1=((BYTE*)&TMSVideoRAM[spritePatternAddress]) + (((WORD)sa->name)*ssize);
+					if(ssize==8)
+						p1=((BYTE*)&TMSVideoRAM[spritePatternAddress]) + (((WORD)sa->name)*8); // (((WORD)sa->name)*ssize);
+					else
+						p1=((BYTE*)&TMSVideoRAM[spritePatternAddress]) + ((((WORD)sa->name) & 0xfc)*8);
 					j=ssize;
 					if(sa->ypos > 0xe1)     // Y diventa negativo..
 						;
-					if(sa->eclock)     // X diventa negativo..
-						;
 	//        setAddrWindow(sa->xpos/2,sa->ypos/2,8/2,8/2);
 					color1=sa->color; color0=TMS9918Reg[7] & 0xf;
-        
-					if(sa->ypos<rowIni || sa->ypos>rowFin)
+
+					
+						if(sa->name==0x88 && sa->ypos>rowIni && sa->ypos<rowFin)			// debug
+							x=1;
+
+					if(sa->color==0)
 						goto skippa_sprite;
 
-					for(py=0; py<ssize; py++) {
+					x=sa->eclock ? -32 : 0;     // X diventa negativo..
+					x+=sa->xpos;
+					sofs=0;
+					for(py=0; py<ssize; py++,j--) {
 						BYTE oldpixel;
-						pVideoRAM=(BYTE*)&VideoRAM[0]+(py+sa->ypos)*(((HORIZ_SIZE/2)+(HORIZ_OFFSCREEN*2)))+sa->xpos/2;
+						int y;
+
+						if(ssize>8)
+							y=(py & 15)+sa->ypos;
+						else
+							y=py+sa->ypos;
+//						if(y+VERT_OFFSCREEN<rowIni || y+VERT_OFFSCREEN>rowFin)		non va così.. sistemare per velocizzare!
+//							continue;
+						pVideoRAM=(BYTE*)&VideoRAM[VERT_OFFSCREEN*(HORIZ_SIZE+HORIZ_OFFSCREEN*2)/2+HORIZ_OFFSCREEN/2]+
+							(y)*(((HORIZ_SIZE+HORIZ_OFFSCREEN*2)/2))+sofs+x/2;
 						ch1=*p1++;
+
+						if(x & 1)// FORSE bisognerebbe gestire posizione dispari...
+							;
 						if(smag==16) {
 	/*            writedata16x2(graphColors[ch2 & B8(10000000 ? color1 : color0],graphColors[ch2 & B8(10000000 ? color1 : color0]);
 							writedata16x2(graphColors[ch2 & B8(1000000 ? color1 : color0],graphColors[ch2 & B8(1000000 ? color1 : color0]);
@@ -275,7 +313,7 @@ sa->xpos=timeGetTime()/8 /*40+i*4*/; sa->ypos=5+i*10;
 							oldpixel=*pVideoRAM;
 							if(ch1 & B8(00000001))
 								oldpixel = (color1) | (color1 << 4);
-							*pVideoRAM++=oldpixel;
+							*pVideoRAM=oldpixel;
 							}
 						else {
 	/*            writedata16(graphColors[ch2 & B8(10000000 ? color1 : color0]); 
@@ -309,22 +347,25 @@ sa->xpos=timeGetTime()/8 /*40+i*4*/; sa->ypos=5+i*10;
 								oldpixel = (oldpixel & 0x0f) | (color1 << 4);
 							if(ch1 & B8(00000001))
 								oldpixel = (oldpixel & 0xf0) | (color1);
-							*pVideoRAM++=oldpixel;
+							*pVideoRAM=oldpixel;
 							}
-						j--;
+
 						switch(j) {   // gestisco i "quadranti" sprite messi a cazzo...
 							case 23:
 	//              setAddrWindow(sa->xpos/2,sa->ypos/2+8/2,8/2,8/2);
-								pVideoRAM=(BYTE*)&VideoRAM[0]+(py+sa->ypos+8)*(((HORIZ_SIZE/2)+(HORIZ_OFFSCREEN*2)))+sa->xpos;
+								sofs=0;
 								break;
 							case 15:
-								p1=((BYTE*)&TMSVideoRAM[spritePatternAddress]) + ((WORD)sa->name*ssize) + (16*ssize)/2;
+//								p1=((BYTE*)&TMSVideoRAM[spritePatternAddress]) + ((WORD)sa->name*ssize) + (16*ssize)/2;
 	//              setAddrWindow(sa->xpos/2+8/2,sa->ypos/2,8/2,8/2);
-								pVideoRAM=(BYTE*)&VideoRAM[0]+(py+sa->ypos)*(((HORIZ_SIZE/2)+(HORIZ_OFFSCREEN*2)))+sa->xpos+(8*ssize)/2;
+								sofs=0+smag/2;
+								if(x>239)		// migliorare bordo dx
+									goto skippa_sprite;
 								break;
 							case 7:
 	//              setAddrWindow(sa->xpos/2+8/2,sa->ypos/2+8/2,8/2,8/2);
-								pVideoRAM=(BYTE*)&VideoRAM[0]+(py+sa->ypos+8)*(((HORIZ_SIZE/2)+(HORIZ_OFFSCREEN*2)))+sa->xpos+(8*ssize)/2;
+//								pVideoRAM=(BYTE*)&VideoRAM[0]+(py+sa->ypos+8)*(((HORIZ_SIZE/2)+(HORIZ_OFFSCREEN*2)))+sa->xpos+(8*ssize)/2;
+								sofs=0+smag/2;
 								break;
 							default:
 								break;
@@ -332,19 +373,25 @@ sa->xpos=timeGetTime()/8 /*40+i*4*/; sa->ypos=5+i*10;
 						}
 
 skippa_sprite:
-					sa--;
+						;
 					}
 				}
 				break;
 			case 1:     // graphics 2
 				for(py=rowIni; py<rowFin/3; py++) {    // 192 linee 
-					p1=((BYTE*)&TMSVideoRAM[videoAddress]) + (py*32 /*HORIZ_SIZE/8*/);
-					pVideoRAM=(BYTE*)&VideoRAM[0]+((py*8)+row1)*(((HORIZ_SIZE/2)+(HORIZ_OFFSCREEN*2)));
-					for(px=0; px<32 /*HORIZ_SIZE/8*/; px++) {    // 256 pixel 
+					p1=((BYTE*)&TMSVideoRAM[videoAddress]) + ((py-VERT_OFFSCREEN/8)*HORIZ_SIZE/8);
+					pVideoRAM=(BYTE*)&VideoRAM[0]+((py*8))*((((HORIZ_SIZE+HORIZ_OFFSCREEN*2)/2)));
+					for(px=0; px<HORIZ_OFFSCREEN/2; px++)
+						*pVideoRAM++=((TMS9918Reg[7] & 0xf) << 4) | (TMS9918Reg[7] & 0xf);
+					for(px=0; px<HORIZ_SIZE/8; px++) {    // 256 pixel 
 						ch1=*p1++;
 						ch2=TMSVideoRAM[charAddress + (ch1*8) + (py & 7)];
 						color=TMSVideoRAM[colorAddress+py];
 						color1=color >> 4; color0=color & 0xf;
+						if(!color0)
+							color0=TMS9918Reg[7] & 0xf;
+						if(!color1)
+							color1=TMS9918Reg[7] & 0xf;
 
 	/*          writedata16x2(graphColors[ch2 & B8(10000000 ? color1 : color0],
 										graphColors[ch2 & B8(01000000 ? color1 : color0]);
@@ -359,10 +406,14 @@ skippa_sprite:
 						*pVideoRAM++=((ch2 & B8(00001000) ? color1 : color0) << 4) | (ch2 & B8(00000100) ? color1 : color0);
 						*pVideoRAM++=((ch2 & B8(00000010) ? color1 : color0) << 4) | (ch2 & B8(00000001) ? color1 : color0);
 						}
+					for(px=0; px<HORIZ_OFFSCREEN/2; px++)
+						*pVideoRAM++=((TMS9918Reg[7] & 0xf) << 4) | (TMS9918Reg[7] & 0xf);
 					}
 				for(py=rowFin/3; py<(rowFin*2)/3; py++) {    //
 					p1=((BYTE*)&TMSVideoRAM[videoAddress]) + (py*32 /*HORIZ_SIZE/8*/);
-					pVideoRAM=(BYTE*)&VideoRAM[0]+((py*8)+row1)*(((HORIZ_SIZE/2)+(HORIZ_OFFSCREEN*2)));
+					pVideoRAM=(BYTE*)&VideoRAM[0]+((py*8))*((((HORIZ_SIZE+HORIZ_OFFSCREEN*2)/2)));
+						for(px=0; px<HORIZ_OFFSCREEN/2; px++)
+							*pVideoRAM++=((TMS9918Reg[7] & 0xf) << 4) | (TMS9918Reg[7] & 0xf);
 					for(px=0; px<32 /*HORIZ_SIZE/8*/; px++) {    // 256 pixel 
 						ch1=*p1++;
 						ch2=TMSVideoRAM[charAddress +2048 + (ch1*8) + (py & 7)];
@@ -374,11 +425,15 @@ skippa_sprite:
 						*pVideoRAM++=((ch2 & B8(00001000) ? color1 : color0) << 4) | (ch2 & B8(00000100) ? color1 : color0);
 						*pVideoRAM++=((ch2 & B8(00000010) ? color1 : color0) << 4) | (ch2 & B8(00000001) ? color1 : color0);
 						}
+					for(px=0; px<HORIZ_OFFSCREEN/2; px++)
+						*pVideoRAM++=((TMS9918Reg[7] & 0xf) << 4) | (TMS9918Reg[7] & 0xf);
 					}
 				for(py=(rowFin*2)/3; py<rowFin; py++) {    // 
 					p1=((BYTE*)&TMSVideoRAM[videoAddress]) + (py*32 /*HORIZ_SIZE/8*/);
-					pVideoRAM=(BYTE*)&VideoRAM[0]+((py*8)+row1)*(((HORIZ_SIZE/2)+(HORIZ_OFFSCREEN*2)));
-					for(px=0; px<32 /*HORIZ_SIZE/8*/; px++) {    // 256 pixel 
+					pVideoRAM=(BYTE*)&VideoRAM[0]+((py*8))*((((HORIZ_SIZE+HORIZ_OFFSCREEN*2)/2)));
+					for(px=0; px<HORIZ_OFFSCREEN/2; px++)
+						*pVideoRAM++=((TMS9918Reg[7] & 0xf) << 4) | (TMS9918Reg[7] & 0xf);
+					for(px=0; px<HORIZ_SIZE/8; px++) {    // 256 pixel 
 						ch1=*p1++;
 						ch2=TMSVideoRAM[charAddress +4096 + (ch1*8) + (py & 7)];
 						color=TMSVideoRAM[colorAddress+4096+py];
@@ -389,12 +444,16 @@ skippa_sprite:
 						*pVideoRAM++=((ch2 & B8(00001000) ? color1 : color0) << 4) | (ch2 & B8(00000100) ? color1 : color0);
 						*pVideoRAM++=((ch2 & B8(00000010) ? color1 : color0) << 4) | (ch2 & B8(00000001) ? color1 : color0);
 						}
+					for(px=0; px<HORIZ_OFFSCREEN/2; px++)
+						*pVideoRAM++=((TMS9918Reg[7] & 0xf) << 4) | (TMS9918Reg[7] & 0xf);
 					}
 				goto handle_sprites;
 				break;
 			case 2:     // multicolor
 				for(py=rowIni; py<rowFin; py+=4) {    // 48 linee diventano 96
-					pVideoRAM=(BYTE*)&VideoRAM[0]+((py*8)+row1)*(((HORIZ_SIZE/2)+(HORIZ_OFFSCREEN*2)));
+					pVideoRAM=(BYTE*)&VideoRAM[0]+((py*8))*((((HORIZ_SIZE+HORIZ_OFFSCREEN*2)/2)));
+					for(px=0; px<HORIZ_OFFSCREEN/2; px++)
+						*pVideoRAM++=((TMS9918Reg[7] & 0xf) << 4) | (TMS9918Reg[7] & 0xf);
 					p1=((BYTE*)&TMSVideoRAM[videoAddress]) + (py*16);
 					ch1=*p1++;
 					p2=((BYTE*)&TMSVideoRAM[charAddress+ch1]);
@@ -402,11 +461,17 @@ skippa_sprite:
 						ch2=*p2++;
 						color=TMSVideoRAM[colorAddress+ch2];
 						color1=color >> 4; color0=color & 0xf;
+						if(!color0)
+							color0=TMS9918Reg[7] & 0xf;
+						if(!color1)
+							color1=TMS9918Reg[7] & 0xf;
           
 						// finire!!
 
 	//          writedata16x2(graphColors[color1],graphColors[color0]);
 						}
+					for(px=0; px<HORIZ_OFFSCREEN/2; px++)
+						*pVideoRAM++=((TMS9918Reg[7] & 0xf) << 4) | (TMS9918Reg[7] & 0xf);
 					}
 				goto handle_sprites;
 				break;
@@ -416,7 +481,9 @@ skippa_sprite:
 					p2=((BYTE*)&TMSVideoRAM[videoAddress]) + (py*40);
 					// mettere bordo
 					for(row1=0; row1<8; row1++) {    // 192 linee(32 righe char) 
-						pVideoRAM=(BYTE*)&VideoRAM[0]+((py*8)+row1)*(((HORIZ_SIZE/2)+(HORIZ_OFFSCREEN*2)));
+						pVideoRAM=(BYTE*)&VideoRAM[0]+((py*8)+row1)*((((HORIZ_SIZE+HORIZ_OFFSCREEN*2)/2)));
+						for(px=0; px<HORIZ_OFFSCREEN/2; px++)
+							*pVideoRAM++=((TMS9918Reg[7] & 0xf) << 4) | (TMS9918Reg[7] & 0xf);
 						p1=p2;
 						for(px=0; px<40; px++) {    // 240 pixel 
 							ch1=*p1++;
@@ -426,38 +493,35 @@ skippa_sprite:
 							*pVideoRAM++=((ch2 & B8(00100000) ? color1 : color0) << 4) | (ch2 & B8(00010000) ? color1 : color0);
 							*pVideoRAM++=((ch2 & B8(00001000) ? color1 : color0) << 4) | (ch2 & B8(00000100) ? color1 : color0);
 							}
+						for(px=0; px<HORIZ_OFFSCREEN/2; px++)
+							*pVideoRAM++=((TMS9918Reg[7] & 0xf) << 4) | (TMS9918Reg[7] & 0xf);
 						}
 					}
 				break;
 			}
 
-do_plot:
-		i=StretchDIBits(hDC,0,(rowIni*AppYSizeR)/(VERT_SIZE),doppiaDim ? AppXSize*2 : AppXSize,
-			doppiaDim ? ((rowFin-rowIni)*AppYSizeR)/(VERT_SIZE/2) : ((rowFin-rowIni)*AppYSizeR)/(VERT_SIZE),
-			0,rowFin,HORIZ_SIZE+HORIZ_OFFSCREEN*2,rowIni-rowFin,
-			VideoRAM,bmI,DIB_RGB_COLORS,SRCCOPY);
-
-
+		if(rowFin>=MAX_RASTER-VERT_OFFSCREEN) {
+			for(py=VERT_SIZE+VERT_OFFSCREEN; py<VERT_SIZE+VERT_OFFSCREEN*2; py++) {
+				pVideoRAM=(BYTE*)&VideoRAM[0]+py*(((HORIZ_SIZE+HORIZ_OFFSCREEN*2)/2));
+				for(px=0; px<((HORIZ_SIZE+HORIZ_OFFSCREEN*2)/2); px++)
+					*pVideoRAM++=((TMS9918Reg[7] & 0xf) << 4) | (TMS9918Reg[7] & 0xf);
+				}
+			/*{
+			HFILE file=_lcreat("videoram.bin",0);
+			_lwrite(file,VideoRAM,sizeof(VideoRAM));
+			_lclose(file);
+			}*/
+			}
 		}
+
+	i=StretchDIBits(hDC,0,(rowIni*AppYSizeR)/(VERT_SIZE+VERT_OFFSCREEN*2),doppiaDim ? AppXSize*2 : AppXSize,
+		doppiaDim ? ((rowFin-rowIni)*AppYSizeR)/((VERT_SIZE+VERT_OFFSCREEN*2)/2) : ((rowFin-rowIni)*AppYSizeR)/(VERT_SIZE+VERT_OFFSCREEN*2),
+		0,rowFin,HORIZ_SIZE+HORIZ_OFFSCREEN*2,rowIni-rowFin,
+		VideoRAM,bmI,DIB_RGB_COLORS,SRCCOPY);
+
   }
 
 
-VOID CALLBACK myTimerProc(HWND hwnd,UINT uMsg,UINT idEvent,DWORD dwTime) {
-	int i;
-	HDC hDC;
-	static BYTE divider;
-
-  divider++;
-//  if(divider>=32) {   // 50 Hz per TOD  qua siamo a 50 Hz :)
-//    divider=0;
-//    }
-
-  if(divider>=50) {   // ergo 1Hz
-    divider=0;
-		}
-
-
-	}
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
 	int wmId,wmEvent;
@@ -846,14 +910,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 	memcpy(grom_seg2+0x2000*3,TI994AGROMExtendedBASIC_4,0x1800);*/
 	memcpy(rom_seg2,TI994AROMExtendedBASIC,ROM_SIZE2);		// non va, non si capisce dove iniziano i 0x4000 (6000 è troppo
 
-//	memcpy(grom_seg2,TI994AGROMDemo,0x8000);		// funzia benone fino a "scacchi"...
+	memcpy(grom_seg2,TI994AGROMDemo,0x8000);		// funzia benone fino a "scacchi"...
 
 #elif GROM_SIZE2==0x4000
 	memcpy(grom_seg2,TI994AGROMStarTrek,0x4000);
 	memcpy(rom_seg2,TI994AROMStarTrek,ROM_SIZE2);
+//	memcpy(grom_seg2,TI994AGROMPacman,0x3800);		 non va non si capisce le rom, v.
 #elif GROM_SIZE2==0x2000
 	memcpy(grom_seg2,TI994AGROMAssembler,0x1800);
-	memcpy(grom_seg2,TI994AGROMCentipede,0x1800);
+	memcpy(grom_seg2,TI994AGROMCentipede,0x1800);		// non va non si capisce idem
+//	memcpy(rom_seg2,TI994AROMCentipede,ROM_SIZE2);
 	memcpy(grom_seg2,TI994AGROMSpaceInvaders,0x1800);
 	memcpy(rom_seg2,TI994AROMSpaceInvaders,ROM_SIZE2);
 #endif
@@ -876,13 +942,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 			_lwrite(spoolFile,IBMBASIC,32768);
 			}*/
 
-/*			_outp(0x37a,8);
-			_outp(0x37a,0);
-			*/
-
 //			hTimer=SetTimer(NULL,0,1000/32,myTimerProc);  // (basato su Raster
 			// non usato... fa schifo! era per refresh...
-			hTimer=SetTimer(NULL,0,1000/50,myTimerProc);  // 
+//			hTimer=SetTimer(NULL,0,1000/50,myTimerProc);  // 
 			initHW();
 			ColdReset=1;
 			break;
