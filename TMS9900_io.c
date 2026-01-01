@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <conio.h>
 #include <math.h>
+#include <joystickapi.h>
 #include "tms9900win.h"
 
 #pragma check_stack(off)
@@ -42,10 +43,12 @@ WORD TMS9918RAMPtr;
 BYTE TMS9919[1],TMSvolume[4];
 WORD TMSfreq[4];    // https://www.unige.ch/medecine/nouspikel/ti99/tms9919.htm
 BYTE TMS9901[32];   // https://www.unige.ch/medecine/nouspikel/ti99/tms9901.htm
+WORD TMS9901Timer,TMS9901Cnt;
 BYTE TMS5220[1];		// https://www.unige.ch/medecine/nouspikel/ti99/speech.htm
 BYTE TMSVideoRAM[TMSVIDEORAM_SIZE];		// 
 BYTE Keyboard[8],KeyboardCol=0;
 extern BYTE CPUPins;
+extern int8_t Joystick;
 extern SWORD Pipe1;
 extern union PIPE Pipe2;
 
@@ -321,31 +324,103 @@ extern HFILE spoolFile;
 		cnt=16;
 	if(r12>=6 && r12<=0x14) {
 //			if(( m_CapsLock == false ) && ( address == 7 ))		{
-		 //((GetKeyState(VK_CAPITAL) & 0x0001)!=0)
+//https://www.ninerpedia.org/wiki/TI-99/4A_CRU_definitions
 //			return 1;
 //		}
-		t=0xff;
+		if(KeyboardCol==21) {
+			t= (GetKeyState(VK_CAPITAL) & 0x0001) ? 0xff : 0x00;
+			return MAKEWORD(0xff,t);
+			}
+
+		if(Joystick) {		// inutile in effetti, v. returncode
+			JOYINFO ji;
+			//ecc
+#define JOY_THRESHOLD 10000
+			if(joyGetPos(JOYSTICKID1,&ji) == MMSYSERR_NOERROR) {
+				if(ji.wButtons & JOY_BUTTON1)
+					Keyboard[0]&=~B8(00000010);
+				else
+					Keyboard[0]|=B8(00000010);
+/*				if(ji.wButtons & JOY_BUTTON2)
+					Keyboard[0]&=~B8(00000001);
+				else
+					Keyboard[0]|=B8(00000001);*/
+				if(ji.wXpos<0x8000-JOY_THRESHOLD)
+					Keyboard[1]&=~B8(00000010);
+				else
+					Keyboard[1]|=B8(00000010);
+				if(ji.wXpos>0x8000+JOY_THRESHOLD)
+					Keyboard[2]&=~B8(00000010);
+				else
+					Keyboard[2]|=B8(00000010);
+				if(ji.wYpos<0x8000-JOY_THRESHOLD)
+					Keyboard[4]&=~B8(00000010);
+				else
+					Keyboard[4]|=B8(00000010);
+				if(ji.wYpos>0x8000+JOY_THRESHOLD)
+					Keyboard[3]&=~B8(00000010);
+				else
+					Keyboard[3]|=B8(00000010);
+				}
+			if(joyGetPos(JOYSTICKID2,&ji) == MMSYSERR_NOERROR) {
+				if(ji.wButtons & JOY_BUTTON1)
+					Keyboard[0]&=~B8(00000001);
+				else
+					Keyboard[0]|=B8(00000001);
+/*				if(ji.wButtons & JOY_BUTTON2)
+					Keyboard[0]&=~B8(00000001);
+				else
+					Keyboard[0]|=B8(00000001);*/
+				if(ji.wXpos<0x8000-JOY_THRESHOLD)
+					Keyboard[1]&=~B8(00000001);
+				else
+					Keyboard[1]|=B8(00000001);
+				if(ji.wXpos>0x8000+JOY_THRESHOLD)
+					Keyboard[2]&=~B8(00000001);
+				else
+					Keyboard[2]|=B8(00000001);
+				if(ji.wYpos<0x8000-JOY_THRESHOLD)
+					Keyboard[4]&=~B8(00000001);
+				else
+					Keyboard[4]|=B8(00000001);
+				if(ji.wYpos>0x8000+JOY_THRESHOLD)
+					Keyboard[3]&=~B8(00000001);
+				else
+					Keyboard[3]|=B8(00000001);
+				}
+
+			}
+		t=0x0;
 		for(i=1; i<=cnt; i++) {			// cnt = 1..8 qua (direi
 			t >>= 1;
-			t |= 0x80;
+//			t |= 0x80;
 
 			if(!(Keyboard[r12/2-3 /*6..14hex*/  +i-1] & (1 << (7-KeyboardCol))))
-				t &= ~0x80;
+				t &= ~0x80;			// togliere, dunque...
+			else
+				t |= 0x80;
+
 			}
 		for(i; i<=8; i++) {
 			t >>= 1;
-			t |= 0x80;
+//			t |= 0x80;
 			}
 		return MAKEWORD(0xff,t);
 		}
 	else if(r12==0x24) {
 		return MAKEWORD(0xff,KeyboardCol);
 		}
-	else if(r12==0x00) {		// ?? vertical sync dice, in IRQ, e cnt=2
+	else if(r12==0x04) {		// o è questo?? vertical sync dice, in IRQ, e cnt=2
+		return 0x00;
+		}
+	else if(r12==0x02) {		// ?? DOVREBBE esse peripheral IRQ
+		return 0x00;
+		}
+	else if(r12==0x00) {		// ?? DOVREBBE essere Timer
 		return 0x00;
 		}
 
-	return 0xff;
+	return 0xffFF;
 
 
 /*	else if(t >= 0x1300 && t < 0x1400) {		// RS232/Timer (CRU?? https://www.unige.ch/medecine/nouspikel/ti99/cru.htm
@@ -427,7 +502,7 @@ void _fastcall PutValue(uint16_t t,uint8_t t1) {
 							
 						TMSfreq[chan] |= (t1 & 0x3f) << 4;
 						if(TMSfreq[chan])			// safety
-							playTone(0.5, sine_generator, 223700L/4/TMSfreq[chan], 22050, 
+							playTone(0.5, sine_generator, 223700L/2/TMSfreq[chan], 22050, 
 								100-(TMSvolume[chan]*6), FALSE);		// diceva /2 ... SISTEMARE PLAY è ciucca di *2
 								
 						}
@@ -687,16 +762,25 @@ extern HFILE spoolFile;
 		t=1;
 		}
 	if(r12==0x24) {			// tastiera
-		KeyboardCol=HIBYTE(t);		// cnt=3 per 3 bit, ma ok ignoro
+		KeyboardCol=HIBYTE(t) & 7;		// cnt=3 per 3 bit, ma ok ignoro
 		}
 /*	else if(t >= 0x1300 && t < 0x1400) {		// RS232/Timer (CRU?? https://www.unige.ch/medecine/nouspikel/ti99/cru.htm
 		}
 	else if(t >= 0x0000 && t < 0x0400) {		// Keyboard (CRU?? https://www.unige.ch/medecine/nouspikel/ti99/cru.htm
 		}*/
 	if(r12==0x00) {			// tastiera?? cos'è? è a inizio SCAN keyboard con 21: potrebbe essere caps-lock (da Classic99
+		//https://www.ninerpedia.org/wiki/TI-99/4A_CRU_definitions
+		KeyboardCol=21;
 //				m_CapsLock = ( data != 0 ) ? true : false;
 		 //((GetKeyState(VK_CAPITAL) & 0x0001)!=0)
 
+		}
+	if(r12==0x2a) {			// NON SI CAPISCE
+		KeyboardCol=21;
+		if(cnt==21) {
+//			t= (GetKeyState(VK_CAPITAL) & 0x0001) ? 0xff : 0x00;
+//			return MAKEWORD(0xff,t);
+			}
 		}
 	}
 
@@ -746,7 +830,6 @@ BOOL PlayResource(LPSTR lpName,BOOL bStop) {
     bRtn = 0; 
  
   // Free the WAVE resource and return success or failure. 
- 
   FreeResource(hRes); 
   return bRtn; 
 	}
@@ -773,12 +856,17 @@ MMRESULT WINAPI subPlayTone(LPVOID *lppi) {
   waveFormat.nAvgBytesPerSec = waveFormat.nSamplesPerSec * waveFormat.nBlockAlign;
   nBuffer = (size_t)(pi->nSeconds * (waveFormat.wBitsPerSample/ CHAR_BIT) * waveFormat.nSamplesPerSec);
 
-  buffer = (uint8_t *)calloc(nBuffer, sizeof(*buffer));
+  buffer = (uint8_t *)calloc(nBuffer,sizeof(buffer[0]));
   __try {
     HWAVEOUT hWavOut = NULL;
-    for(i=0; i < nBuffer; i += waveFormat.nChannels)
-      for(j=0; j < waveFormat.nChannels; j++)
-        buffer[i+j] = (*pi->signal)((i+j) * pi->nSeconds / nBuffer, j, pi->frequency, pi->volume);
+    for(i=0; i<nBuffer; i += waveFormat.nChannels)
+      for(j=0; j<waveFormat.nChannels; j++)
+        buffer[i+j] = (*pi->signal)((i+j) * pi->nSeconds / nBuffer /2, j, pi->frequency, pi->volume);
+/*			{
+			HFILE file=_lcreat("sound.bin",0);
+			_lwrite(file,buffer,nBuffer);
+			_lclose(file);
+			}*/
     mmresult = waveOutOpen(&hWavOut, WAVE_MAPPER, &waveFormat, 0, 0, CALLBACK_NULL);
     if(mmresult == MMSYSERR_NOERROR) {
       __try {
@@ -795,16 +883,17 @@ MMRESULT WINAPI subPlayTone(LPVOID *lppi) {
 							Sleep((ULONG)(1000 * pi->nSeconds - (GetTickCount() - start)));
               }
             __finally { 
-							waveOutUnprepareHeader(hWavOut, &hdr, sizeof(hdr)); }
-              }
+							waveOutUnprepareHeader(hWavOut, &hdr, sizeof(hdr));
+							}
             }
-          __finally { 
-						timeEndPeriod(timePeriod); 
-						}
           }
         __finally { 
-					waveOutClose(hWavOut); 
+					timeEndPeriod(timePeriod); 
 					}
+        }
+      __finally { 
+				waveOutClose(hWavOut); 
+				}
 			}
 		}
 	__finally { 
@@ -911,6 +1000,7 @@ extern const unsigned char charset_international[2048],tmsFont[(128-32)*8];
   
 	TMS9919[0]=B8(00000000);
   TMS9901[0]=0;
+	TMS9901Timer=0; TMS9901Cnt=0;
   TMS5220[0]=0;
   
   memset(TMSVideoRAM,0,TMSVIDEORAM_SIZE);    // mah...

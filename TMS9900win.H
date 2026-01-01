@@ -20,7 +20,7 @@
 //#define TMS9940 1
 
 #define CPU_CLOCK_DIVIDER 10000L		// 
-#define HW_CLOCK_DIVIDER 20000L		// 
+#define HW_CLOCK_DIVIDER 600L		// dice che il timer viaggia a 1:64 Phi... diciamo che la CPU giri a 1/4Phi ergo...
 
 #define RAM_START 0x8000		// in certi posti pare mirrored tra 8000 e 8400, in altri solo 8300..8400...
 #define RAM_SIZE 256
@@ -262,7 +262,7 @@ https://post.bytes.com/forum/topic/c/176274-binary-constant-macros
 #define GET_REG(q) (MAKEWORD(regs->r[q].b.h,regs->r[q].b.l))      // 
 #define GET_WORKING_REG_S() GET_REG(workingRegIndex)      // 
 #define SET_REG(q,n) {regs->r[q].b.l=HIBYTE(n);regs->r[q].b.h=LOBYTE(n);}      // 
-#define SET_WORKING_REG(n) SET_REG(workingRegIndex,n);
+#define SET_WORKING_REG_S(n) SET_REG(workingRegIndex,n);
 #define WORKING_TS ((Pipe1 >> 4) & B8(11))
 #define WORKING_TD ((Pipe1 >> 10) & B8(11))
 #define REGISTER_DIRECT 0
@@ -271,49 +271,49 @@ https://post.bytes.com/forum/topic/c/176274-binary-constant-macros
 #define REGISTER_INDIRECT_AUTOINCREMENT 3
 #define WORKING_REG2_INDEX ((Pipe1 >> 6) & 0xf)
 #define GET_WORKING_REG_D() GET_REG(workingReg2Index)      // 
-#define SET_WORKING_REG2(n) SET_REG(workingReg2Index,n);
+#define SET_WORKING_REG_D(n) SET_REG(workingReg2Index,n);
 
 // USARE, MA OCCHIO!!  ci sono le piccole differenze con getPipe e pc+=2, e anche autoincrement
 // mancano solo + alcune 8bit
 #define COMPUTE_SOURCE_NOPIPE(a) \
   switch(workingTS) {\
     case REGISTER_DIRECT:\
-      res##a##.x=GET_WORKING_REG_S();\
+      res##a.x=GET_WORKING_REG_S();\
       break;\
     case REGISTER_INDIRECT:\
-      res##a##.x=GetIntValue(GET_WORKING_REG_S());\
+      res##a.x=GetIntValue(GET_WORKING_REG_S());\
       break;\
     case REGISTER_SYMBOLIC_INDEXED:\
       if(workingRegIndex)\
-        res##a##.x=GetIntValue((uint16_t)(GET_WORKING_REG_S()+(int16_t)Pipe2.x));\
+        res##a.x=GetIntValue((uint16_t)(GET_WORKING_REG_S()+(int16_t)Pipe2.x));\
       else\
-        res##a##.x=GetIntValue(Pipe2.x);\
+        res##a.x=GetIntValue(Pipe2.x);\
       _pc+=2;\
       break;\
     case REGISTER_INDIRECT_AUTOINCREMENT:\
-      res##a##.x=GetIntValue(GET_WORKING_REG_S());\
-      SET_WORKING_REG(GET_WORKING_REG_S()+2);\
+      res##a.x=GetIntValue(GET_WORKING_REG_S());\
+      SET_WORKING_REG_S(GET_WORKING_REG_S()+2);\
       break;\
     }
 #define COMPUTE_SOURCE_PIPE(a) \
   switch(workingTS) {\
     case REGISTER_DIRECT:\
-      res##a##.x=GET_WORKING_REG_S();\
+      res##a.x=GET_WORKING_REG_S();\
       break;\
     case REGISTER_INDIRECT:\
-      res##a##.x=GetIntValue(GET_WORKING_REG_S());\
+      res##a.x=GetIntValue(GET_WORKING_REG_S());\
       break;\
     case REGISTER_SYMBOLIC_INDEXED:\
       if(workingRegIndex)\
-        res##a##.x=GetIntValue((uint16_t)(GET_WORKING_REG_S()+(int16_t)Pipe2.x));\
+        res##a.x=GetIntValue((uint16_t)(GET_WORKING_REG_S()+(int16_t)Pipe2.x));\
       else\
-        res##a##.x=GetIntValue(Pipe2.x);\
+        res##a.x=GetIntValue(Pipe2.x);\
       GetPipe(_pc);\
       _pc+=2;\
       break;\
     case REGISTER_INDIRECT_AUTOINCREMENT:\
-      res##a##.x=GetIntValue(GET_WORKING_REG_S());\
-      SET_WORKING_REG(GET_WORKING_REG_S()+2);\
+      res##a.x=GetIntValue(GET_WORKING_REG_S());\
+      SET_WORKING_REG_S(GET_WORKING_REG_S()+2);\
       break;\
     }
 #define COMPUTE_SOURCE2 \
@@ -333,103 +333,121 @@ https://post.bytes.com/forum/topic/c/176274-binary-constant-macros
       break;\
     case REGISTER_INDIRECT_AUTOINCREMENT:\
       res2.x=GetIntValue(GET_WORKING_REG_D());\
-      SET_WORKING_REG2(GET_WORKING_REG_D()+2);\
+      SET_WORKING_REG_D(GET_WORKING_REG_D()+2);\
       break;\
     }
-#define COMPUTE_SOURCE2_NOINC \
+#define COMPUTE_SOURCE2_NOINC(a) \
   switch(workingTD) {\
     case REGISTER_DIRECT:\
-      res2.x=GET_WORKING_REG_D();\
+      res##a.x=GET_WORKING_REG_D();\
       break;\
     case REGISTER_INDIRECT:\
-      res2.x=GetIntValue(GET_WORKING_REG_D());\
+      res##a.x=GetIntValue(GET_WORKING_REG_D());\
       break;\
     case REGISTER_SYMBOLIC_INDEXED:\
       if(workingReg2Index)\
-        res2.x=GetIntValue((uint16_t)(GET_WORKING_REG_D()+(int16_t)Pipe2.x));\
+        res##a.x=GetIntValue((uint16_t)(GET_WORKING_REG_D()+(int16_t)Pipe2.x));\
       else\
-        res2.x=GetIntValue(Pipe2.x);\
+        res##a.x=GetIntValue(Pipe2.x);\
       _pc+=2;\
       break;\
     case REGISTER_INDIRECT_AUTOINCREMENT:\
-      res2.x=GetIntValue(GET_WORKING_REG_D());\
+      res##a.x=GetIntValue(GET_WORKING_REG_D());\
       break;\
     }
 #define COMPUTE_SOURCE_NOPC_NOINC(a) \
   switch(workingTS) {\
     case REGISTER_DIRECT:\
-      res##a##.x=GET_WORKING_REG_S();\
+      res##a.x=GET_WORKING_REG_S();\
       break;\
     case REGISTER_INDIRECT:\
-      res##a##.x=GetIntValue(GET_WORKING_REG_S());\
+      res##a.x=GetIntValue(GET_WORKING_REG_S());\
       break;\
     case REGISTER_SYMBOLIC_INDEXED:\
       if(workingRegIndex)\
-        res##a##.x=GetIntValue((uint16_t)(GET_WORKING_REG_S()+(int16_t)Pipe2.x));\
+        res##a.x=GetIntValue((uint16_t)(GET_WORKING_REG_S()+(int16_t)Pipe2.x));\
       else\
-        res##a##.x=GetIntValue(Pipe2.x);\
+        res##a.x=GetIntValue(Pipe2.x);\
       break;\
     case REGISTER_INDIRECT_AUTOINCREMENT:\
-      res##a##.x=GetIntValue(GET_WORKING_REG_S());\
+      res##a.x=GetIntValue(GET_WORKING_REG_S());\
+      break;\
+    }
+#define COMPUTE_SOURCE2_NOPC_NOINC(a) \
+  switch(workingTD) {\
+    case REGISTER_DIRECT:\
+      res##a.x=GET_WORKING_REG_D();\
+      break;\
+    case REGISTER_INDIRECT:\
+      res##a.x=GetIntValue(GET_WORKING_REG_D());\
+      break;\
+    case REGISTER_SYMBOLIC_INDEXED:\
+      if(workingReg2Index)\
+        res##a.x=GetIntValue((uint16_t)(GET_WORKING_REG_D()+(int16_t)Pipe2.x));\
+      else\
+        res##a.x=GetIntValue(Pipe2.x);\
+      break;\
+    case REGISTER_INDIRECT_AUTOINCREMENT:\
+      res##a.x=GetIntValue(GET_WORKING_REG_D());\
       break;\
     }
 #define COMPUTE_SOURCE8_PIPE(a) \
   switch(workingTS) {\
     case REGISTER_DIRECT:\
-      res##a##.b.l=HIBYTE(GET_WORKING_REG_S());\
+      res##a.b.l=HIBYTE(GET_WORKING_REG_S());\
       break;\
     case REGISTER_INDIRECT:\
-      res##a##.b.l=GetValue(GET_WORKING_REG_S());\
+      res##a.b.l=GetValue(GET_WORKING_REG_S());\
       break;\
     case REGISTER_SYMBOLIC_INDEXED:\
       if(workingRegIndex)\
-        res##a##.b.l=GetValue((uint16_t)(GET_WORKING_REG_S()+(int16_t)Pipe2.x));\
+        res##a.b.l=GetValue((uint16_t)(GET_WORKING_REG_S()+(int16_t)Pipe2.x));\
       else\
-        res##a##.b.l=GetValue(Pipe2.x);\
+        res##a.b.l=GetValue(Pipe2.x);\
       GetPipe(_pc);\
       _pc+=2;\
       break;\
     case REGISTER_INDIRECT_AUTOINCREMENT:\
-      res##a##.b.l=GetValue(GET_WORKING_REG_S());\
-      SET_WORKING_REG(GET_WORKING_REG_S()+1);\
+      res##a.b.l=GetValue(GET_WORKING_REG_S());\
+      SET_WORKING_REG_S(GET_WORKING_REG_S()+1);\
       break;\
     }
 #define COMPUTE_SOURCE82(a) \
   switch(workingTD) {\
     case REGISTER_DIRECT:\
-      res##a##.b.l=HIBYTE(GET_WORKING_REG_D());\
+      res##a.b.l=HIBYTE(GET_WORKING_REG_D());\
       break;\
     case REGISTER_INDIRECT:\
-      res##a##.b.l=GetValue(GET_WORKING_REG_D());\
+      res##a.b.l=GetValue(GET_WORKING_REG_D());\
       break;\
     case REGISTER_SYMBOLIC_INDEXED:\
       if(workingReg2Index)\
-        res##a##.b.l=GetValue(GET_WORKING_REG_D()+(int16_t)Pipe2.x);\
+        res##a.b.l=GetValue(GET_WORKING_REG_D()+(int16_t)Pipe2.x);\
       else\
-        res##a##.b.l=GetValue(Pipe2.x);\
+        res##a.b.l=GetValue(Pipe2.x);\
       _pc+=2;\
       break;\
     case REGISTER_INDIRECT_AUTOINCREMENT:\
-      res##a##.b.l=GetValue(GET_WORKING_REG_D());\
-      SET_WORKING_REG2(GET_WORKING_REG_D()+1);\
+      res##a.b.l=GetValue(GET_WORKING_REG_D());\
+      SET_WORKING_REG_D(GET_WORKING_REG_D()+1);\
       break;\
     }
 #define COMPUTE_SOURCE82_NOPC_NOINC(a) \
   switch(workingTD) {\
     case REGISTER_DIRECT:\
-      res##a##.b.l=HIBYTE(GET_WORKING_REG_D());\
+      res##a.b.l=HIBYTE(GET_WORKING_REG_D());\
       break;\
     case REGISTER_INDIRECT:\
-      res##a##.b.l=GetValue(GET_WORKING_REG_D());\
+      res##a.b.l=GetValue(GET_WORKING_REG_D());\
       break;\
     case REGISTER_SYMBOLIC_INDEXED:\
       if(workingReg2Index)\
-        res##a##.b.l=GetValue(GET_WORKING_REG_D()+(int16_t)Pipe2.x);\
+        res##a.b.l=GetValue(GET_WORKING_REG_D()+(int16_t)Pipe2.x);\
       else\
-        res##a##.b.l=GetValue(Pipe2.x);\
+        res##a.b.l=GetValue(Pipe2.x);\
       break;\
     case REGISTER_INDIRECT_AUTOINCREMENT:\
-      res##a##.b.l=GetValue(GET_WORKING_REG_D());\
+      res##a.b.l=GetValue(GET_WORKING_REG_D());\
       break;\
     }
 #define COMPUTE_SOURCE_BRANCH \
@@ -450,14 +468,14 @@ https://post.bytes.com/forum/topic/c/176274-binary-constant-macros
       break;\
     case REGISTER_INDIRECT_AUTOINCREMENT:\
       res3.x=GetIntValue(GET_WORKING_REG_S());/* BOH...*/\
-      SET_WORKING_REG(GET_WORKING_REG_S()+2);\
+      SET_WORKING_REG_S(GET_WORKING_REG_S()+2);\
       break;\
     }
 
 #define STORE_DEST_16 \
   switch(workingTD) {\
     case REGISTER_DIRECT:\
-      SET_WORKING_REG2(res3.x);\
+      SET_WORKING_REG_D(res3.x);\
       break;\
     case REGISTER_INDIRECT:\
       PutIntValue(GET_WORKING_REG_D(),res3.x);\
@@ -471,13 +489,13 @@ https://post.bytes.com/forum/topic/c/176274-binary-constant-macros
       break;\
     case REGISTER_INDIRECT_AUTOINCREMENT:\
       PutIntValue(GET_WORKING_REG_D(),res3.x);\
-      SET_WORKING_REG2(GET_WORKING_REG_D()+2);\
+      SET_WORKING_REG_D(GET_WORKING_REG_D()+2);\
       break;\
     }
 #define STORE_DEST_8 \
   switch(workingTD) {\
     case REGISTER_DIRECT:\
-      SET_WORKING_REG2(MAKEWORD(LOBYTE(GET_WORKING_REG_D()),res3.b.l));	/* se registro, va in MSB*/ \
+      SET_WORKING_REG_D(MAKEWORD(LOBYTE(GET_WORKING_REG_D()),res3.b.l));	/* se registro, va in MSB*/ \
       break;\
     case REGISTER_INDIRECT:\
       PutValue(GET_WORKING_REG_D(),res3.b.l);	/* v. di là, big-endian circa*/ \
@@ -491,14 +509,14 @@ https://post.bytes.com/forum/topic/c/176274-binary-constant-macros
       break;\
     case REGISTER_INDIRECT_AUTOINCREMENT:\
       PutValue(GET_WORKING_REG_D(),res3.b.l);\
-      SET_WORKING_REG2(GET_WORKING_REG_D()+1);\
+      SET_WORKING_REG_D(GET_WORKING_REG_D()+1);\
       break;\
     }
 
 #define STORE_SOURCE_16 \
   switch(workingTS) {\
     case REGISTER_DIRECT:\
-      SET_WORKING_REG(res3.x);\
+      SET_WORKING_REG_S(res3.x);\
       break;\
     case REGISTER_INDIRECT:\
       PutIntValue(GET_WORKING_REG_S(),res3.x);\
@@ -512,13 +530,13 @@ https://post.bytes.com/forum/topic/c/176274-binary-constant-macros
       break;\
     case REGISTER_INDIRECT_AUTOINCREMENT:\
       PutIntValue(GET_WORKING_REG_S(),res3.x);\
-      SET_WORKING_REG(GET_WORKING_REG_S()+2);\
+      SET_WORKING_REG_S(GET_WORKING_REG_S()+2);\
       break;\
     }
 #define STORE_SOURCE_8 \
   switch(workingTS) {\
     case REGISTER_DIRECT:\
-      SET_WORKING_REG(res3.x);\
+      SET_WORKING_REG_S(res3.x);\
       break;\
     case REGISTER_INDIRECT:\
       PutIntValue(GET_WORKING_REG_S(),res3.x);\
@@ -532,6 +550,6 @@ https://post.bytes.com/forum/topic/c/176274-binary-constant-macros
       break;\
     case REGISTER_INDIRECT_AUTOINCREMENT:\
       PutIntValue(GET_WORKING_REG_S(),res3.x);\
-      SET_WORKING_REG(GET_WORKING_REG_S()+2);\
+      SET_WORKING_REG_S(GET_WORKING_REG_S()+2);\
       break;\
     }
