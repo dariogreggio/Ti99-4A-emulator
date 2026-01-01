@@ -200,6 +200,10 @@ int decodeKBD(int ch, long l, BOOL m) {
 			case 0xdd:		// ì^
 				Keyboard[0]&=~B8(10000000);
 				break;
+			case 0xde:		// à#  faccio "
+				Keyboard[4]&=~B8(10000000);
+				Keyboard[2]&=~B8(00000100);
+				break;
 			case 0xba:		// è
 				Keyboard[4]&=~B8(10000000);
 				Keyboard[6]&=~B8(00010000);			// sarebbe R o F a seconda
@@ -214,9 +218,9 @@ int decodeKBD(int ch, long l, BOOL m) {
 				break;
 			case 0xc0:		// ò@
 				break;
-			case 0xde:		// à#
-				break;
-			case 0xbf:		// ù
+			case 0xbf:		// ù		~
+				Keyboard[4]&=~B8(10000000);
+				Keyboard[2]&=~B8(01000000);
 				break;
 			case 0xbc:		// ,
 				Keyboard[0]&=~B8(00100000);
@@ -235,7 +239,8 @@ int decodeKBD(int ch, long l, BOOL m) {
 				break;
 			case VK_BACK:			// FCNT 9
 				Keyboard[4]&=~B8(10000000);
-				Keyboard[3]&=~B8(01000000);
+//				Keyboard[3]&=~B8(01000000);		// non va... forse extended basic?
+				Keyboard[5]&=~B8(01000000);		// faccio left quindi
 				break;
 			case VK_DELETE:		// FCNT 1
 				Keyboard[4]&=~B8(10000000);
@@ -483,18 +488,24 @@ int decodeKBD(int ch, long l, BOOL m) {
 			case 0xdd:		// ì^
 				Keyboard[0]|=B8(10000000);
 				break;
+			case 0xde:		// à#  faccio "
+				Keyboard[4]|=B8(10000000);
+				Keyboard[2]|=B8(00000100);
+				break;
 			case 0xc0:		// ò@
 				break;
-			case 0xde:		// à#
-				break;
 			case 0xbf:		// ù
+				Keyboard[4]|=B8(10000000);
+				Keyboard[2]|=B8(01000000);
+				break;
 				break;
 			case VK_RETURN:
 				Keyboard[2]|=B8(10000000);
 				break;
 			case VK_BACK:
 				Keyboard[4]|=B8(10000000);
-				Keyboard[3]|=B8(01000000);
+//				Keyboard[3]|=B8(01000000);		// v.sopra
+				Keyboard[5]|=B8(01000000);		// 
 				break;
 			case VK_DELETE:
 				Keyboard[4]|=B8(10000000);
