@@ -3,6 +3,7 @@
 
 // Windows Header Files:
 #include <windows.h>
+#include <joystickapi.h>
 #include <stdint.h>
 
 // Local Header Files
@@ -69,6 +70,7 @@ extern BYTE TIMIRQ,VIDIRQ,KBDIRQ,SERIRQ,RTCIRQ;
 extern HFILE spoolFile;
 BITMAPINFO *bmI;
 LARGE_INTEGER pcFrequency;
+int8_t Joystick=0;
 
 extern const unsigned char TI994A_BIN_GROM0[],TI994A_BIN_GROM1[],TI994A_BIN_GROM2[],
 	TI994A_BIN2[],TI994A_BIN_U610[],TI994A_BIN_U611[],
@@ -840,6 +842,21 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 			decodeKBD(wParam,lParam,1);
 			break;        
 
+		case MM_JOY1MOVE :                     // changed position 
+				if((UINT)wParam & (JOY_BUTTON1 | JOY_BUTTON2)) 
+						; 
+				break; 
+		case MM_JOY1BUTTONDOWN :               // button is down 
+				if((UINT)wParam & JOY_BUTTON1) 
+				{ 
+				} 
+				else if((UINT)wParam & JOY_BUTTON2) 
+				{ 
+				} 
+				break; 
+		case MM_JOY1BUTTONUP :                 // button is up 
+				break;
+
 		case WM_LBUTTONDOWN:
 			break;        
 
@@ -946,12 +963,19 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 			// non usato... fa schifo! era per refresh...
 //			hTimer=SetTimer(NULL,0,1000/50,myTimerProc);  // 
 			initHW();
+			if(joySetCapture(hWnd, JOYSTICKID1, NULL, FALSE)) { 
+        MessageBeep(MB_ICONEXCLAMATION); 
+        //MessageBox(hWnd, "Couldn't capture the joystick.", NULL, MB_OK | MB_ICONEXCLAMATION); 
+        //PostMessage(hWnd,WM_CLOSE,0,0L); 
+				} 
+			else
+				Joystick=1;
 			ColdReset=1;
 			break;
 
 		case WM_QUERYENDSESSION:
 #ifndef _DEBUG
-			if(MessageBox(hWnd,"La chiusura del programma cancellerà la memoria del TMS9900. Continuare?",APPNAME,MB_OKCANCEL | MB_ICONSTOP | MB_DEFBUTTON2) == IDOK)
+			if(MessageBox(hWnd,"La chiusura di Windows e del programma cancellerà la memoria del TMS9900. Continuare?",APPNAME,MB_OKCANCEL | MB_ICONSTOP | MB_DEFBUTTON2) == IDOK)
 				return 1l;
 			else 
 				return 0l;
