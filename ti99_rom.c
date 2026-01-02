@@ -11,7 +11,21 @@
     Brief description of the file.
 
   @Description
-    Describe the purpose of this file.
+    A GROM-only image is always a single file whose filename ends in G:
+
+hellog.bin
+
+IMPORTANT! The trailing G indicates that the file contents are GROM code, so ROM files must not end in G!
+
+A mixed ROM and GROM image is always split into up to 3 files, ending with C and D for the ROM files and G for the GROM file:
+
+helloc.bin
+hellod.bin   (optional)
+hellog.bin
+
+For mixed images, the ROM file must always end in C, but an optional second ROM bank ending in D may be present. The GROM G file may be up to 40 KB in size, whereas the ROM C file may be up to 960 KB in size. If a D file is given, it must be exactly 8 KB in size.
+
+Finally, ROM-only images may be a single file of almost arbitrary name or split files like in the mixed case. When using a single file, the filename must not end in D or G.
  */
 /* ************************************************************************** */
 

@@ -327,10 +327,6 @@ extern HFILE spoolFile;
 //https://www.ninerpedia.org/wiki/TI-99/4A_CRU_definitions
 //			return 1;
 //		}
-		if(KeyboardCol==21) {
-			t= (GetKeyState(VK_CAPITAL) & 0x0001) ? 0xff : 0x00;
-			return MAKEWORD(0xff,t);
-			}
 
 		if(Joystick) {		// inutile in effetti, v. returncode
 			JOYINFO ji;
@@ -417,6 +413,16 @@ extern HFILE spoolFile;
 		return 0x00;
 		}
 	else if(r12==0x00) {		// ?? DOVREBBE essere Timer
+
+		if(KeyboardCol==21) {
+/*If you want to detect the Alpha key:
+CLR R12 Set CRU base to zero for the TMS9901
+SBZ 21 Set the P5 line on the TMS9901 to zero (low)
+TB 7 Test ROW INT7 for the Alpha key. EQ bit 0 if down, 1 if up
+SBO 21 Be sure to turn off the P5 line on the way out! (SBO does not affect EQ bit)*/
+			t= (GetKeyState(VK_CAPITAL) & 0x0001) ? 0xff : 0x00;
+			return MAKEWORD(0xff,t);
+			}
 		return 0x00;
 		}
 
@@ -847,7 +853,7 @@ MMRESULT WINAPI subPlayTone(LPVOID *lppi) {
 
   MMRESULT mmresult = MMSYSERR_NOERROR;
   WAVEFORMATEX waveFormat = {0};
-  waveFormat.cbSize = 0;
+  waveFormat.cbSize = sizeof(WAVEFORMATEX);
   waveFormat.wFormatTag = WAVE_FORMAT_PCM /*WAVE_FORMAT_IEEE_FLOAT*/;
   waveFormat.wBitsPerSample = CHAR_BIT*2;  // ?? CHAR_BIT * sizeof(buffer[0]);
   waveFormat.nChannels = 2;

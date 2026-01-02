@@ -379,6 +379,7 @@ skippa_sprite:
 					}
 				}
 				break;
+
 			case 1:     // graphics 2
 				for(py=rowIni; py<rowFin/3; py++) {    // 192 linee 
 					p1=((BYTE*)&TMSVideoRAM[videoAddress]) + ((py-VERT_OFFSCREEN/8)*HORIZ_SIZE/8);
@@ -451,6 +452,7 @@ skippa_sprite:
 					}
 				goto handle_sprites;
 				break;
+
 			case 2:     // multicolor
 				for(py=rowIni; py<rowFin; py+=4) {    // 48 linee diventano 96
 					pVideoRAM=(BYTE*)&VideoRAM[0]+((py*8))*((((HORIZ_SIZE+HORIZ_OFFSCREEN*2)/2)));
@@ -477,6 +479,7 @@ skippa_sprite:
 					}
 				goto handle_sprites;
 				break;
+
 			case 4:     // text 32x24, ~120mS, O1 opp O2, 2/7/24
 				color1=TMS9918Reg[7] >> 4; color0=TMS9918Reg[7] & 0xf;
 				for(py=rowIni/8; py<rowFin/8; py++) {    // 192 linee(32 righe char) 
@@ -927,7 +930,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 	memcpy(grom_seg2+0x2000*3,TI994AGROMExtendedBASIC_4,0x1800);*/
 	memcpy(rom_seg2,TI994AROMExtendedBASIC,ROM_SIZE2);		// non va, non si capisce dove iniziano i 0x4000 (6000 è troppo
 
-	memcpy(grom_seg2,TI994AGROMDemo,0x8000);		// funzia benone fino a "scacchi"...
+//	memcpy(grom_seg2,TI994AGROMDemo,0x8000);		// funzia benone fino a "scacchi"...
 
 #elif GROM_SIZE2==0x4000
 	memcpy(grom_seg2,TI994AGROMStarTrek,0x4000);

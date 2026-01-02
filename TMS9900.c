@@ -57,7 +57,9 @@ union PIPE Pipe2;
 //#define CARRY_SUB_16() (!!((res3.x<res2.x) || (res2.x==0)))
 #define OVF_SUB_16() (!!(((res2.x ^ res1.x) & (res3.x ^ res1.x)) & 0x8000))
 
-extern BYTE TMS9918Reg[8],TMS9918RegS;
+extern BYTE TMS9918Reg[],TMS9918RegS;
+extern BYTE TMS9901[];
+extern WORD TMS9901Timer,TMS9901Cnt;
  
 
 #ifdef _DEBUG
@@ -151,12 +153,14 @@ int Emulate(int mode) {
       }
 
 
-    if(TIMIRQ) {
-//      DoIRQ=1;
+    if(TIMIRQ) {		// v. TMS9901, gestire...
+      CPUPins |= DoIRQ;
+			IPL=B8(0001);   // 
       TIMIRQ=0;
       }
     if(VIDIRQ) {
       CPUPins |= DoIRQ;
+			IPL=B8(0001);   // 
       VIDIRQ=0;
       }
 
@@ -186,10 +190,10 @@ int Emulate(int mode) {
 //??				IPL = _st.InterruptMask;
 				CPUPins &= ~DoIRQ;
         i=_wp;
-    		_wp=GetIntValue((uint16_t)(0x0006+IPL*2));
+    		_wp=GetIntValue((uint16_t)(0x0000+IPL*4));
 		    regs=(union T_REGISTERS *)&ram_seg[_wp & 0xff /* -RAM_START */];     // così oppure cast diretto...
         SET_REG(14,_pc);		// VERIFICARE!
-  			_pc=GetIntValue((uint16_t)(0x0004+IPL*2));
+  			_pc=GetIntValue((uint16_t)(0x0002+IPL*4));
         SET_REG(13,i);
         SET_REG(15,_st.x);
 
@@ -275,7 +279,7 @@ int Emulate(int mode) {
 			}*/
     
 		{			extern WORD GROMPtr;
-      if(_pc == 0xd84  /*_pc == 0xb24 && */ /*_pc == 0xc0c*/ /* && GROMPtr==0x1d7*/) {
+      if(_pc == 0x304  /*_pc == 0xb24 && */ /*_pc == 0xc0c*/ /* && GROMPtr==0x1d7*/) {
 				int T;
         T=0;
         }
@@ -310,7 +314,7 @@ execute:
                 }
               
 aggRotate:
-              SET_WORKING_REG(res3.x);
+              SET_WORKING_REG_S(res3.x);
               goto aggFlag16Z;
               break;
             case B8(00001000) << 8:     // SRA Shift right arithmetic
@@ -352,7 +356,7 @@ aggRotate:
                   res2.x=GET_WORKING_REG_S();
                   res1.x=Pipe2.x;
                   res3.x=res1.x+res2.x;
-                  SET_WORKING_REG(res3.x);
+                  SET_WORKING_REG_S(res3.x);
 									_pc+=2;
                   
 aggFlag16A:
@@ -362,7 +366,7 @@ aggFlag16A:
                   break;
                 case B8(00000010000) << 5:     // LI Load immediate
                   res3.x=Pipe2.x;
-									SET_WORKING_REG(res3.x);
+									SET_WORKING_REG_S(res3.x);
 									_pc+=2;
                   goto aggFlag16Z;
                   break;
@@ -375,7 +379,7 @@ aggFlag16A:
                   res1.x=GET_WORKING_REG_S();
                   res2.x=Pipe2.x;
                   res3.x=res1.x & res2.x;
-                  SET_WORKING_REG(res3.x);
+                  SET_WORKING_REG_S(res3.x);
 									_pc+=2;
 
 aggFlag16Z:
@@ -387,7 +391,7 @@ aggFlag16Z:
                   res1.x=GET_WORKING_REG_S();
                   res2.x=Pipe2.x;
                   res3.x=res1.x | res2.x;
-                  SET_WORKING_REG(res3.x);
+                  SET_WORKING_REG_S(res3.x);
 									_pc+=2;
                   goto aggFlag16Z;
                   break;
@@ -499,7 +503,7 @@ store16_S:
                   break;
                   
                 case B8(00000010110) << 5:     // STST Store status register
-                  SET_WORKING_REG(_st.x);
+                  SET_WORKING_REG_S(_st.x);
                   break;
                 }
               break;
@@ -514,7 +518,7 @@ store16_S:
             case B8(0000001010) << 6:     // STWP
               switch(Pipe1 & B16(11111111,11100000)) {
                 case B8(00000010101) << 5:     // STWP Store workspace pointer
-                  SET_WORKING_REG(_wp);
+                  SET_WORKING_REG_S(_wp);
                   break;
                 case B8(00000010100) << 5:     // CI Compare immediate
                   res1.x=GET_WORKING_REG_S();
@@ -640,24 +644,7 @@ Jump:
         
       case B8(1010) << 12:    // A Add
 				COMPUTE_SOURCE_PIPE(2); 
-        switch(workingTD) {
-          case REGISTER_DIRECT:
-            res1.x=GET_WORKING_REG_D();
-            break;
-          case REGISTER_INDIRECT:
-            res1.x=GetIntValue(GET_WORKING_REG_D());
-            break;
-          case REGISTER_SYMBOLIC_INDEXED:
-            if(workingReg2Index)
-              res1.x=GetIntValue((uint16_t)(GET_WORKING_REG_D()+(int16_t)Pipe2.x));
-            else
-              res1.x=GetIntValue(Pipe2.x);
-            break;
-          case REGISTER_INDIRECT_AUTOINCREMENT:
-            res1.x=GetIntValue(GET_WORKING_REG_D());
-//            SET_WORKING_REG2(GET_WORKING_REG_D()+2);
-            break;
-          }
+				COMPUTE_SOURCE2_NOPC_NOINC(1);
         res3.x=res1.x+res2.x;
 				STORE_DEST_16
         goto aggFlag16A;
@@ -710,24 +697,7 @@ calcParity:
 
       case B8(0110) << 12:    // S Subtract
 				COMPUTE_SOURCE_PIPE(2); 
-        switch(workingTD) {
-          case REGISTER_DIRECT:
-            res1.x=GET_WORKING_REG_D();
-            break;
-          case REGISTER_INDIRECT:
-            res1.x=GetIntValue(GET_WORKING_REG_D());
-            break;
-          case REGISTER_SYMBOLIC_INDEXED:
-            if(workingReg2Index)
-              res1.x=GetIntValue((uint16_t)(GET_WORKING_REG_D()+(int16_t)Pipe2.x));
-            else
-              res1.x=GetIntValue(Pipe2.x);
-            break;
-          case REGISTER_INDIRECT_AUTOINCREMENT:
-            res1.x=GetIntValue(GET_WORKING_REG_D());
-//            SET_WORKING_REG2(GET_WORKING_REG_D()+2);
-            break;
-          }
+				COMPUTE_SOURCE2_NOPC_NOINC(1);
         res3.x=res1.x-res2.x;
         
         _st.Carry=CARRY_SUB_16();
@@ -749,7 +719,7 @@ calcParity:
       
       case B8(1110) << 12:    // SOC Set ones corresponding
 				COMPUTE_SOURCE_PIPE(1); 
-				COMPUTE_SOURCE2_NOINC
+				COMPUTE_SOURCE2_NOINC(2);
         res3.x=res2.x | res1.x;
         
 store16_D:
@@ -765,7 +735,7 @@ store16_D:
       
       case B8(0100) << 12:    // SZC Set zeros corresponding
 				COMPUTE_SOURCE_PIPE(1);
-				COMPUTE_SOURCE2_NOINC
+				COMPUTE_SOURCE2_NOINC(2);
         res3.x=res2.x & ~res1.x;
         goto store16_D;
         break;
@@ -805,7 +775,7 @@ store16_D:
           case B8(001010) << 10:     // XOR Exclusive OR
             res2.x=GET_WORKING_REG_D();
             res3.x = res1.x ^ res2.x;
-            SET_WORKING_REG2(res3.x);
+            SET_WORKING_REG_D(res3.x);
             goto aggFlag16Z;
             break;
           case B8(001011) << 10:     // XOP Extended Operation
@@ -893,7 +863,7 @@ store_dca:
           case B8(001110) << 10:     // MPY Multiply
 						res2.x=GET_WORKING_REG_D();
             res3.d = res1.x * res2.x;
-            SET_WORKING_REG2(HIWORD(res3.d));
+            SET_WORKING_REG_D(HIWORD(res3.d));
             SET_REG(((WORKING_REG2_INDEX+1) /*& 0xf*/),res3.x);   // OKKIO, porcata, & se 15... dice che deve andare in memoria subito dopo! tipo R16
 //no!            goto aggFlag;
             break;
@@ -927,7 +897,7 @@ store_dca:
               _st.Overflow = 1;
             else {
 	            res3.d = res2.d / (uint32_t)res1.x;		// signed o unsigned??
-              SET_WORKING_REG2(LOWORD(res3.d));
+              SET_WORKING_REG_D(LOWORD(res3.d));
               SET_REG((WORKING_REG2_INDEX+1) /*& 0xf*/,res2.d % (uint32_t)res1.x);   // OKKIO, porcata, & se 15... dice che deve andare in memoria subito dopo! tipo R16
               _st.Overflow = 0;
               }
@@ -951,25 +921,7 @@ store_dca:
 							}
 						else {
 							res3.b.l=res3.b.h;
-							switch(workingTS) {
-								case REGISTER_DIRECT:
-									SET_WORKING_REG(MAKEWORD(LOBYTE(GET_WORKING_REG_S()),res3.b.l));		// se registro, va in MSB
-									break;
-								case REGISTER_INDIRECT:
-									PutValue(GET_WORKING_REG_S(),res3.b.l);			// v. di là, big-endian circa
-									break;
-								case REGISTER_SYMBOLIC_INDEXED:
-									if(workingRegIndex)
-										PutValue((uint16_t)(GET_WORKING_REG_S()+(int16_t)Pipe2.x),res3.b.l);
-									else
-										PutValue(Pipe2.x,res3.b.l);
-									_pc+=2;
-									break;
-								case REGISTER_INDIRECT_AUTOINCREMENT:
-									PutValue(GET_WORKING_REG_S(),res3.b.l);
-									SET_WORKING_REG(GET_WORKING_REG_S()+1);
-									break;
-								}
+							STORE_SOURCE_8 
 							goto aggFlag8Z;
 							}
 						}
@@ -980,7 +932,16 @@ store_dca:
 			}
 
 rallenta:
-			;
+		if(cyclesSoFar>cyclesHW) {			// 0.8uS => 1.19MHz
+
+			TMS9901Cnt--;		// finire...
+			if(!TMS9901Cnt) {
+				TMS9901Cnt=TMS9901Timer;
+	//			TIMIRQ=1;
+				}
+			cyclesHW += HWClock;		// Timer
+			}
+
 		} while(!fExit);
 
 	return 1;
